@@ -1,0 +1,197 @@
+package handlers
+
+import (
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+	"time"
+
+	"home-provider/internal/middleware"
+	"home-provider/internal/models"
+	"home-provider/internal/services"
+)
+
+type ProviderResolver struct {
+	Provider *models.Provider
+	Tag      *models.Tag
+}
+
+func (r *ProviderResolver) TagName() string {
+	if r.Tag != nil {
+		return r.Tag.Name
+	}
+	return ""
+}
+
+const (
+	ProviderKimi    = "Kimi"
+	ProviderMiniMax = "MiniMax"
+)
+
+func ResolveProvider(r *http.Request, model string, pm *services.ProviderManager, tm *services.TagManager) (*ProviderResolver, error) {
+	tag, err := tm.GetByName(model)
+	if err != nil || tag == nil {
+		return nil, errors.New("tag not found")
+	}
+	provider, err := pm.Get(tag.ProviderID)
+	if err != nil || provider == nil {
+		return nil, errors.New("provider not found for tag")
+	}
+	return &ProviderResolver{Provider: provider, Tag: tag}, nil
+}
+
+func IsOpenAICompatible(provider *models.Provider) bool {
+	return provider.Name == ProviderKimi || provider.Name == ProviderMiniMax
+}
+
+type openAIResponse struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int    `json:"created"`
+	Model   string `json:"model"`
+	Choices []struct {
+		Index   int `json:"index"`
+		Message struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
+	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage"`
+}
+
+func SetProviderHeaders(provider *models.Provider, req *http.Request) {
+	if provider.Name == ProviderKimi {
+		req.Header.Set("User-Agent", "KimiCLI/1.3")
+	}
+}
+
+type TokenUsage struct {
+	InputTokens  int
+	OutputTokens int
+}
+
+func ParseTokenUsage(body []byte, isOpenAICompatible bool) TokenUsage {
+	var usage TokenUsage
+	var parsed struct {
+		Usage struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+		} `json:"usage"`
+	}
+	if json.Unmarshal(body, &parsed) == nil {
+		usage.InputTokens = parsed.Usage.InputTokens
+		usage.OutputTokens = parsed.Usage.OutputTokens
+	}
+	return usage
+}
+
+func TransformOpenAIResponseToAnthropic(openAIBody []byte, model string) map[string]interface{} {
+	var openAIResp openAIResponse
+
+	if err := json.Unmarshal(openAIBody, &openAIResp); err != nil {
+		slog.Warn("Failed to parse OpenAI response for transformation", "error", err)
+		return nil
+	}
+
+	if len(openAIResp.Choices) == 0 {
+		return nil
+	}
+
+	content := openAIResp.Choices[0].Message.Content
+	stopReason := "end_turn"
+	if openAIResp.Choices[0].FinishReason == "length" {
+		stopReason = "max_tokens"
+	}
+
+	return map[string]interface{}{
+		"id":            openAIResp.ID,
+		"type":          "message",
+		"role":          "assistant",
+		"content":       []map[string]interface{}{{"type": "text", "text": content}},
+		"model":         model,
+		"stop_reason":   stopReason,
+		"stop_sequence": nil,
+		"usage": map[string]interface{}{
+			"input_tokens":  openAIResp.Usage.PromptTokens,
+			"output_tokens": openAIResp.Usage.CompletionTokens,
+		},
+	}
+}
+
+type ProviderErrorInfo struct {
+	ErrorType string
+	Message   string
+	Reason    string
+}
+
+func ParseProviderError(body []byte, providerName string) ProviderErrorInfo {
+	var providerErr struct {
+		Error struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	if json.Unmarshal(body, &providerErr) == nil && providerErr.Error.Type != "" {
+		return ProviderErrorInfo{
+			ErrorType: providerErr.Error.Type,
+			Message:   providerErr.Error.Message,
+			Reason:    providerErr.Error.Message,
+		}
+	}
+
+	return ProviderErrorInfo{
+		ErrorType: "upstream_error",
+		Message:   "Provider returned an error",
+		Reason:    string(body),
+	}
+}
+
+func GetErrorSuggestion(providerName, errorType, reason string) string {
+	switch errorType {
+	case "access_terminated_error":
+		return "This provider requires requests from recognized coding agents. Check if your User-Agent is properly set."
+	case "invalid_request_error":
+		return "Check your request format and parameters. Ensure the model name is valid for this provider."
+	case "authentication_error":
+		return "Verify your API key is correct and has not expired."
+	case "rate_limit_error":
+		return "Rate limit exceeded. Wait and retry, or contact the provider to increase your quota."
+	case "model_not_found_error", "not_found_error":
+		return "The model may not be available on this provider. Check available models or try a different tag."
+	default:
+		if providerName == "Kimi" && errorType == "upstream_error" {
+			return "Kimi requires specific User-Agent. Ensure you're using KimiCLI/1.3 or similar."
+		}
+		return "Check provider status and try again. If persists, contact provider support."
+	}
+}
+
+func LogRequest(start time.Time, apiKeyRecord *models.APIKey, method, path string, status int, model, tagName, provider string) {
+	attrs := []any{
+		slog.String("type", "inference"),
+		slog.String("method", method),
+		slog.String("path", path),
+		slog.Int("status", status),
+		slog.Duration("latency", time.Since(start)),
+		slog.String("key_prefix", apiKeyRecord.KeyPrefix),
+		slog.String("model", model),
+		slog.String("tag", tagName),
+		slog.String("provider", provider),
+	}
+
+	level := middleware.LogLevel(status)
+	if level == "ERROR" {
+		slog.Error("request failed", attrs...)
+	} else if level == "WARN" {
+		slog.Warn("request error", attrs...)
+	} else {
+		slog.Info("request", attrs...)
+	}
+}

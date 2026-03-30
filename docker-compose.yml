@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=home-provider.db
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-default-dev-key-32-bytes-long!!!}

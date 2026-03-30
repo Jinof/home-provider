@@ -1,0 +1,35 @@
+{
+  "name": "home-provider",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "fastify": "^5.x",
+    "@fastify/cors": "^10.x",
+    "drizzle-orm": "^0.38.x",
+    "better-sqlite3": "^11.x",
+    "zod": "^3.x",
+    "nanoid": "^5.x"
+  },
+  "devDependencies": {
+    "@types/node": "^22.x",
+    "@types/better-sqlite3": "^7.x",
+    "typescript": "^5.x",
+    "tsx": "^4.x",
+    "eslint": "^9.x",
+    "prettier": "^3.x",
+    "vitest": "^2.x",
+    "drizzle-kit": "^0.30.x"
+  }
+}
