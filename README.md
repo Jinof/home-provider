@@ -1,5 +1,7 @@
 # Home Provider
 
+[中文版](./README_zh.md)
+
 API proxy server that routes LLM requests (OpenAI-compatible + Anthropic) through configurable provider backends, with API key management and usage tracking.
 
 ## Features

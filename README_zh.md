@@ -1,5 +1,7 @@
 # Home Provider
 
+[English](./README.md)
+
 API 代理服务器，通过可配置的提供商后端路由 LLM 请求（兼容 OpenAI + Anthropic），提供 API 密钥管理和使用统计。
 
 ## 功能特性
