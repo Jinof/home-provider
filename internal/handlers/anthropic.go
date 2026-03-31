@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"home-provider/internal/middleware"
@@ -122,9 +123,34 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Stream {
+		// Read first chunk to check for error in SSE stream
+		firstChunk, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		resp.Body.Close()
+		if err != nil {
+			slog.Error("Failed to read stream response", "provider", resolver.Provider.Name, "error", err)
+			respondError(w, 502, "upstream_error", "Failed to read stream response")
+			return
+		}
+
+		// Check if the stream contains an error in first chunk
+		if errBody := parseErrorBody(firstChunk); errBody != nil {
+			slog.Warn("Upstream stream returned error",
+				slog.String("provider", resolver.Provider.Name),
+				slog.String("error_type", errBody.Type),
+				slog.String("message", errBody.Message),
+			)
+			httpStatus := errorTypeToHTTPStatus(errBody.Type)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(httpStatus)
+			w.Write(firstChunk)
+			return
+		}
+
+		// Not an error, send as SSE with 200
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.WriteHeader(200)
+		w.Write(firstChunk)
 		io.Copy(w, resp.Body)
 		return
 	}
@@ -135,6 +161,20 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("Failed to read response body", "provider", resolver.Provider.Name, "error", err)
 		respondError(w, 502, "upstream_error", "Failed to read response body")
+		return
+	}
+
+	// Check if response body contains an error (even if HTTP status is 200)
+	if errBody := parseErrorBody(body); errBody != nil {
+		slog.Warn("Upstream returned error in body",
+			slog.String("provider", resolver.Provider.Name),
+			slog.String("error_type", errBody.Type),
+			slog.String("message", errBody.Message),
+		)
+		httpStatus := errorTypeToHTTPStatus(errBody.Type)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(httpStatus)
+		w.Write(body)
 		return
 	}
 
@@ -153,48 +193,16 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 	tagName := resolver.TagName()
 	LogRequest(start, apiKeyRecord, r.Method, r.URL.Path, resp.StatusCode, req.Model, tagName, resolver.Provider.Name)
 
-	if resp.StatusCode != 200 {
-		providerErr := ParseProviderError(body, resolver.Provider.Name)
-		suggestion := GetErrorSuggestion(resolver.Provider.Name, providerErr.ErrorType, providerErr.Reason)
-
-		errDetails := map[string]interface{}{
-			"provider":        resolver.Provider.Name,
-			"provider_status": resp.StatusCode,
-			"provider_error":  providerErr.ErrorType,
-			"reason":          providerErr.Reason,
+	// Pass through upstream response directly without transformation
+	// Copy upstream headers to downstream response
+	for k, v := range resp.Header {
+		if k == "Content-Length" {
+			continue // Don't copy Content-Length as we're changing the body
 		}
-
-		if tagName != "" {
-			errDetails["tag"] = tagName
-		}
-		if req.Model != "" {
-			errDetails["model"] = req.Model
-		}
-
-		slog.Error("Upstream provider error",
-			slog.String("provider", resolver.Provider.Name),
-			slog.Int("status", resp.StatusCode),
-			slog.String("error_type", providerErr.ErrorType),
-			slog.String("reason", providerErr.Reason),
-		)
-
-		respondErrorWithDetails(w, 502, "upstream_error", providerErr.Message, suggestion, errDetails)
-		return
+		w.Header().Set(k, v[0])
 	}
-
-	var outputBody []byte
-	if isOpenAICompatible {
-		anthropicResp := TransformOpenAIResponseToAnthropic(body, req.Model)
-		outputBody, err = json.Marshal(anthropicResp)
-		if err != nil {
-			outputBody = body
-		}
-	} else {
-		outputBody = body
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(outputBody)
+	w.WriteHeader(resp.StatusCode)
+	w.Write(body)
 }
 
 func (h *AnthropicHandler) buildUpstreamRequest(req AnthropicMessageRequest, isOpenAICompatible bool) map[string]interface{} {
@@ -236,4 +244,58 @@ func (h *AnthropicHandler) buildUpstreamRequest(req AnthropicMessageRequest, isO
 		result["stream"] = req.Stream
 	}
 	return result
+}
+
+type upstreamError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+type errorResponse struct {
+	Error upstreamError `json:"error"`
+}
+
+func parseErrorBody(body []byte) *upstreamError {
+	// Try JSON format: {"error": {...}}
+	var errResp errorResponse
+	if err := json.Unmarshal(body, &errResp); err == nil {
+		if errResp.Error.Type != "" || errResp.Error.Message != "" {
+			return &errResp.Error
+		}
+	}
+
+	// Try SSE format: data: {"error": {...}}
+	lines := strings.Split(string(body), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "data: ") {
+			sseData := strings.TrimPrefix(line, "data: ")
+			if errResp.Error.Type != "" || errResp.Error.Message != "" {
+				if unmarshalErr := json.Unmarshal([]byte(sseData), &errResp); unmarshalErr == nil {
+					if errResp.Error.Type != "" || errResp.Error.Message != "" {
+						return &errResp.Error
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func errorTypeToHTTPStatus(errorType string) int {
+	switch errorType {
+	case "rate_limit_reached_error", "rate_limit_error":
+		return 429
+	case "authentication_error", "invalid_api_key_error":
+		return 401
+	case "permission_error", "forbidden_error":
+		return 403
+	case "not_found_error":
+		return 404
+	case "invalid_request_error", "bad_request_error":
+		return 400
+	case "overloaded_error", "service_unavailable_error":
+		return 503
+	default:
+		return 500
+	}
 }

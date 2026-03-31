@@ -78,7 +78,7 @@ func main() {
 	apiMux.HandleFunc("POST /messages", anthropicHandler.Messages)
 	apiMux.HandleFunc("POST /chat/completions", openaiHandler.ChatCompletions)
 	apiMux.HandleFunc("GET /models", openaiHandler.ListModels)
-	apiMuxWithAuth := middleware.APIKeyAuth(apiMux)
+	apiMuxWithAuth := middleware.RequestLogger(middleware.APIKeyAuth(apiMux))
 
 	adminMux := http.NewServeMux()
 	adminMux.HandleFunc("GET /providers", adminHandler.ListProviders)
