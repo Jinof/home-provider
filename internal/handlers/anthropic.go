@@ -93,10 +93,19 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var upstreamURL string
-	if isOpenAICompatible {
-		upstreamURL = resolver.Provider.APIEndpoint + "/v1/chat/completions"
-	} else {
-		upstreamURL = resolver.Provider.APIEndpoint + "/v1/messages"
+	var needTransform bool
+
+	switch resolver.Provider.APIType {
+	case models.APITypeAnthropicOnly:
+		upstreamURL = resolver.Provider.AnthropicEndpoint + "/v1/messages"
+		// Anthropic_Only provider 返回 Anthropic 格式，不需要转换
+	case models.APITypeOpenAIOnly:
+		upstreamURL = resolver.Provider.AnthropicEndpoint + "/v1/anthropic"
+		needTransform = true // 需要转换成 Anthropic 格式
+	case models.APITypeBoth:
+		upstreamURL = resolver.Provider.AnthropicEndpoint + "/v1/messages"
+	default:
+		upstreamURL = resolver.Provider.AnthropicEndpoint + "/v1/messages"
 	}
 
 	req2, err := http.NewRequest("POST", upstreamURL, bytes.NewReader(reqBody))
@@ -133,6 +142,12 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Check if the stream contains an error in first chunk
+		slog.Debug("Upstream stream first chunk",
+			slog.String("provider", resolver.Provider.Name),
+			slog.Int("status", resp.StatusCode),
+			slog.String("content_type", resp.Header.Get("Content-Type")),
+			slog.String("body", string(firstChunk)),
+		)
 		if errBody := parseErrorBody(firstChunk); errBody != nil {
 			slog.Warn("Upstream stream returned error",
 				slog.String("provider", resolver.Provider.Name),
@@ -168,6 +183,9 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 	if errBody := parseErrorBody(body); errBody != nil {
 		slog.Warn("Upstream returned error in body",
 			slog.String("provider", resolver.Provider.Name),
+			slog.Int("status", resp.StatusCode),
+			slog.String("content_type", resp.Header.Get("Content-Type")),
+			slog.String("body", string(body)),
 			slog.String("error_type", errBody.Type),
 			slog.String("message", errBody.Message),
 		)
@@ -177,6 +195,13 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		w.Write(body)
 		return
 	}
+
+	slog.Debug("Upstream raw response",
+		slog.String("provider", resolver.Provider.Name),
+		slog.Int("status", resp.StatusCode),
+		slog.String("content_type", resp.Header.Get("Content-Type")),
+		slog.String("body", string(body)),
+	)
 
 	usage := ParseTokenUsage(body, isOpenAICompatible)
 
@@ -192,6 +217,17 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	tagName := resolver.TagName()
 	LogRequest(start, apiKeyRecord, r.Method, r.URL.Path, resp.StatusCode, req.Model, tagName, resolver.Provider.Name)
+
+	// Apply transformation if needed (OpenAI_Only provider's Anthropic endpoint returns OpenAI format)
+	if needTransform {
+		transformedResp := TransformOpenAIResponseToAnthropic(body, req.Model)
+		if transformedResp != nil {
+			transformedBody, err := json.Marshal(transformedResp)
+			if err == nil {
+				body = transformedBody
+			}
+		}
+	}
 
 	// Pass through upstream response directly without transformation
 	// Copy upstream headers to downstream response
