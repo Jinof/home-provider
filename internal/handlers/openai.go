@@ -86,7 +86,19 @@ func (h *OpenAIHandler) ChatCompletions(w http.ResponseWriter, r *http.Request) 
 		respondError(w, 500, "internal_error", "Failed to marshal request")
 		return
 	}
-	upstreamURL := resolver.Provider.APIEndpoint + "/v1/chat/completions"
+
+	var needTransform bool
+	switch resolver.Provider.APIType {
+	case models.APITypeAnthropicOnly:
+		// Anthropic_Only provider's OpenAI endpoint returns Anthropic format, needs transformation
+		needTransform = true
+	case models.APITypeOpenAIOnly, models.APITypeBoth:
+		// OpenAI_Only and Both providers return OpenAI format directly
+	default:
+		// Default behavior: no transformation
+	}
+
+	upstreamURL := resolver.Provider.OpenAIEndpoint + "/v1/chat/completions"
 
 	req2, err := http.NewRequest("POST", upstreamURL, bytes.NewReader(reqBody))
 	if err != nil {
@@ -165,6 +177,17 @@ func (h *OpenAIHandler) ChatCompletions(w http.ResponseWriter, r *http.Request) 
 
 		respondErrorWithDetails(w, 502, "upstream_error", providerErr.Message, suggestion, errDetails)
 		return
+	}
+
+	// Apply transformation if needed (Anthropic_Only provider's OpenAI endpoint returns Anthropic format)
+	if needTransform {
+		transformedResp := TransformAnthropicResponseToOpenAI(body)
+		if transformedResp != nil {
+			transformedBody, err := json.Marshal(transformedResp)
+			if err == nil {
+				body = transformedBody
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
