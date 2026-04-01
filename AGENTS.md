@@ -16,8 +16,7 @@ home-provider/
 ├── web/                 # Vue.js 3 frontend (built separately via Vite)
 ├── data/                # JSON persistence (api_keys, providers, usage, tags, logs)
 ├── configs/             # External configs (provider API endpoints)
-├── certs/               # TLS certificates
-└── src/                 # TypeScript/Fastify (legacy/abandoned - do not use)
+└── certs/               # TLS certificates
 ```
 
 ---
@@ -66,27 +65,6 @@ npm run build
 # Preview production build locally
 npm run preview
 ```
-
-### TypeScript Server (legacy - do not use)
-
-```bash
-# Dev
-npm run dev
-
-# Build
-npm run build
-
-# Run tests
-npm run test:run
-
-# Lint
-npm run lint
-
-# Type check
-npm run typecheck
-```
-
----
 
 ## Routing Map
 
@@ -220,28 +198,6 @@ const router = createRouter({
 
 ---
 
-## TypeScript Conventions (legacy src/)
-
-### ESLint Rules
-
-- `@typescript-eslint/no-explicit-any`: error
-- `@typescript-eslint/no-unused-vars`: error (ignore `_` prefix)
-- `@typescript-eslint/no-non-null-assertion`: recommended
-
-### Prettier Config
-
-```json
-{ "semi": true, "singleQuote": true, "tabWidth": 2, "trailingComma": "es5", "printWidth": 100 }
-```
-
-### Anti-Patterns (TypeScript)
-
-- ❌ Do NOT use `any` — use proper types
-- ❌ Do NOT leave unused variables
-- ❌ Do NOT commit `console.log` statements
-
----
-
 ## Key Files
 
 | File                                    | Purpose                                             |
@@ -270,7 +226,7 @@ const router = createRouter({
 | `PORT`           | 18427   | Server port                        |
 | `LOG_LEVEL`      | info    | debug\|info\|warn\|error           |
 | `ENCRYPTION_KEY` | —       | 32-byte key for AES-GCM (required) |
-| `DATA_DIR`       | ./data  | Directory for JSON data files      |
+| `DATA_DIR`       | `~/.config/home-provider` | Directory for JSON data files |
 
 ---
 
@@ -279,5 +235,3 @@ const router = createRouter({
 - Port **18427** is the default
 - Provider API keys are encrypted with AES-GCM — `services.InitCrypto()` must run at startup
 - Log buffer is in-memory ring buffer (max 500 entries)
-- `src/` directory is abandoned TypeScript/Fastify — **do not use**
-- `drizzle/` migrations are for abandoned TypeScript server — **do not use**

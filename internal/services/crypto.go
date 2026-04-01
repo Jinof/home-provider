@@ -8,6 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+
+	"home-provider/internal/database"
 )
 
 var encryptionKey []byte
@@ -22,7 +25,7 @@ func InitCrypto() error {
 		return nil
 	}
 
-	keyFile := "./data/.encryption_key"
+	keyFile := filepath.Join(database.DefaultDataDir(), ".encryption_key")
 	data, err := os.ReadFile(keyFile)
 	if err == nil && len(data) == 32 {
 		encryptionKey = data
@@ -33,7 +36,7 @@ func InitCrypto() error {
 	if _, err := rand.Read(key); err != nil {
 		return fmt.Errorf("failed to generate random encryption key: %w", err)
 	}
-	os.MkdirAll("./data", 0755)
+	os.MkdirAll(database.DefaultDataDir(), 0755)
 	os.WriteFile(keyFile, key, 0600)
 	encryptionKey = key
 	return nil

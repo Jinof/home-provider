@@ -4,13 +4,35 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
-func resolvePath(filePath string) string {
-	if dataDir := os.Getenv("DATA_DIR"); dataDir != "" {
-		return filepath.Join(dataDir, filePath)
+func DefaultDataDir() string {
+	if dataDir := strings.TrimSpace(os.Getenv("DATA_DIR")); dataDir != "" {
+		return dataDir
 	}
-	return filePath
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil || homeDir == "" {
+		return "./data"
+	}
+
+	return filepath.Join(homeDir, ".config", "home-provider")
+}
+
+func resolvePath(filePath string) string {
+	dataDir := DefaultDataDir()
+
+	switch {
+	case filePath == "./data", filePath == "data":
+		return dataDir
+	case strings.HasPrefix(filePath, "./data/"):
+		return filepath.Join(dataDir, strings.TrimPrefix(filePath, "./data/"))
+	case strings.HasPrefix(filePath, "data/"):
+		return filepath.Join(dataDir, strings.TrimPrefix(filePath, "data/"))
+	default:
+		return filePath
+	}
 }
 
 func ReadJSON(filePath string, out interface{}) error {
@@ -51,7 +73,7 @@ func WriteJSON(filePath string, data interface{}) error {
 
 func Init(dir string) error {
 	if dir == "" {
-		dir = "./data"
+		dir = DefaultDataDir()
 	}
 	return os.MkdirAll(dir, 0755)
 }

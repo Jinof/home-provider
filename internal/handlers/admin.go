@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"home-provider/internal/models"
 	"home-provider/internal/services"
 )
 
@@ -30,10 +31,12 @@ func (h *AdminHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdminHandler) CreateProvider(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name        string `json:"name"`
-		APIEndpoint string `json:"api_endpoint"`
-		APIKey      string `json:"api_key"`
-		Models      string `json:"models"`
+		Name              string `json:"name"`
+		APIType           string `json:"api_type"`
+		OpenAIEndpoint    string `json:"openai_endpoint"`
+		AnthropicEndpoint string `json:"anthropic_endpoint"`
+		APIKey            string `json:"api_key"`
+		Models            string `json:"models"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		respondError(w, 400, "invalid_request_error", "Invalid request body")
@@ -44,10 +47,6 @@ func (h *AdminHandler) CreateProvider(w http.ResponseWriter, r *http.Request) {
 		respondError(w, 400, "validation_error", "name is required")
 		return
 	}
-	if body.APIEndpoint == "" {
-		respondError(w, 400, "validation_error", "api_endpoint is required")
-		return
-	}
 	if body.APIKey == "" {
 		respondError(w, 400, "validation_error", "api_key is required")
 		return
@@ -56,8 +55,12 @@ func (h *AdminHandler) CreateProvider(w http.ResponseWriter, r *http.Request) {
 		respondError(w, 400, "validation_error", "models is required and must not be empty")
 		return
 	}
+	if errMsg := validateProviderConfig(body.APIType, body.OpenAIEndpoint, body.AnthropicEndpoint); errMsg != "" {
+		respondError(w, 400, "validation_error", errMsg)
+		return
+	}
 
-	id, err := services.NewProviderManager().Create(body.Name, body.APIEndpoint, body.APIKey, body.Models)
+	id, err := services.NewProviderManager().Create(body.Name, body.APIType, body.OpenAIEndpoint, body.AnthropicEndpoint, body.APIKey, body.Models)
 	if err != nil {
 		respondError(w, 500, "internal_error", err.Error())
 		return
@@ -89,17 +92,77 @@ func (h *AdminHandler) UpdateProvider(w http.ResponseWriter, r *http.Request) {
 		delete(body, "api_key")
 	}
 
+	provider, err := services.NewProviderManager().Get(id)
+	if err != nil {
+		respondError(w, 404, "not_found_error", "Provider not found")
+		return
+	}
+
+	apiType := string(provider.APIType)
+	if apiType == "" {
+		apiType = string(models.APITypeOpenAIOnly)
+	}
+	openAIEndpoint := provider.OpenAIEndpoint
+	anthropicEndpoint := provider.AnthropicEndpoint
+
+	if value, ok := body["api_type"].(string); ok {
+		apiType = value
+	}
+	if value, ok := body["openai_endpoint"].(string); ok {
+		openAIEndpoint = value
+	}
+	if value, ok := body["anthropic_endpoint"].(string); ok {
+		anthropicEndpoint = value
+	}
+	if errMsg := validateProviderConfig(apiType, openAIEndpoint, anthropicEndpoint); errMsg != "" {
+		respondError(w, 400, "validation_error", errMsg)
+		return
+	}
+
 	if err := services.NewProviderManager().Update(id, body); err != nil {
 		respondError(w, 500, "internal_error", err.Error())
 		return
 	}
 
-	provider, err := services.NewProviderManager().Get(id)
+	provider, err = services.NewProviderManager().Get(id)
 	if err != nil {
 		respondError(w, 500, "internal_error", "Failed to retrieve updated provider")
 		return
 	}
 	respondJSON(w, 200, provider)
+}
+
+func validateProviderConfig(apiType, openAIEndpoint, anthropicEndpoint string) string {
+	apiType = strings.TrimSpace(apiType)
+	openAIEndpoint = strings.TrimSpace(openAIEndpoint)
+	anthropicEndpoint = strings.TrimSpace(anthropicEndpoint)
+
+	switch models.APIType(apiType) {
+	case "":
+		if openAIEndpoint == "" && anthropicEndpoint == "" {
+			return "api_type is required"
+		}
+		return validateProviderConfig(string(models.APITypeOpenAIOnly), openAIEndpoint, anthropicEndpoint)
+	case models.APITypeOpenAIOnly:
+		if openAIEndpoint == "" {
+			return "openai_endpoint is required for openai_only providers"
+		}
+	case models.APITypeAnthropicOnly:
+		if anthropicEndpoint == "" {
+			return "anthropic_endpoint is required for anthropic_only providers"
+		}
+	case models.APITypeBoth:
+		if openAIEndpoint == "" {
+			return "openai_endpoint is required for both providers"
+		}
+		if anthropicEndpoint == "" {
+			return "anthropic_endpoint is required for both providers"
+		}
+	default:
+		return "api_type must be one of: openai_only, anthropic_only, both"
+	}
+
+	return ""
 }
 
 func (h *AdminHandler) DeleteProvider(w http.ResponseWriter, r *http.Request) {

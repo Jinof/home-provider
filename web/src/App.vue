@@ -309,7 +309,7 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
             <tr v-for="p in providers || []" :key="p.id">
               <td>{{ p.name }}</td>
               <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis">
-                {{ p.api_endpoint }}
+                {{ getProviderEndpoint(p) }}
               </td>
               <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis">
                 {{ getModels(p.models).join(', ') }}
@@ -865,29 +865,6 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
                 <option value="mimo">{{ $t('providers.presets.mimo') }}</option>
               </select>
             </div>
-            <div
-              v-if="selectedPreset !== ''"
-              class="form-group"
-              style="margin-bottom: 0; flex: 1; min-width: 200px"
-            >
-              <label style="font-weight: 500; color: #555; display: block; margin-bottom: 5px"
-                >{{ $t('providers.api_type') }}:</label
-              >
-              <select
-                v-model="selectedApiType"
-                @change="onApiTypeChange()"
-                style="
-                  width: 100%;
-                  padding: 8px;
-                  border: 1px solid #ddd;
-                  border-radius: 4px;
-                  font-size: 0.9rem;
-                "
-              >
-                <option value="openai">{{ $t('providers.api_type_openai') }}</option>
-                <option value="anthropic">{{ $t('providers.api_type_anthropic') }}</option>
-              </select>
-            </div>
           </div>
         </div>
         <form @submit.prevent="saveProvider()">
@@ -901,12 +878,29 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
             />
           </div>
           <div class="form-group">
-            <label>{{ $t('providers.form.endpoint') }}</label>
+            <label>{{ $t('providers.form.api_type') }}</label>
+            <select v-model="providerForm.api_type" required>
+              <option value="openai_only">{{ $t('providers.api_type_openai_only') }}</option>
+              <option value="anthropic_only">{{ $t('providers.api_type_anthropic_only') }}</option>
+              <option value="both">{{ $t('providers.api_type_both') }}</option>
+            </select>
+          </div>
+          <div class="form-group" v-if="providerForm.api_type !== 'anthropic_only'">
+            <label>{{ $t('providers.form.openai_endpoint') }}</label>
             <input
               type="text"
-              v-model="providerForm.api_endpoint"
-              required
-              placeholder="https://api.openai.com"
+              v-model="providerForm.openai_endpoint"
+              :required="providerForm.api_type !== 'anthropic_only'"
+              placeholder="https://api.openai.com/v1/chat/completions"
+            />
+          </div>
+          <div class="form-group" v-if="providerForm.api_type !== 'openai_only'">
+            <label>{{ $t('providers.form.anthropic_endpoint') }}</label>
+            <input
+              type="text"
+              v-model="providerForm.anthropic_endpoint"
+              :required="providerForm.api_type !== 'openai_only'"
+              placeholder="https://api.anthropic.com/v1/messages"
             />
           </div>
           <div class="form-group">
@@ -1074,7 +1068,6 @@ const showTagModal = ref(false);
 const editingProvider = ref<any>(null);
 const editingTag = ref<any>(null);
 const selectedPreset = ref('');
-const selectedApiType = ref('openai');
 const logs = ref<any[]>([]);
 const logsContainer = ref<HTMLElement | null>(null);
 const logsOffset = ref(0);
@@ -1092,7 +1085,9 @@ let logsInterval: ReturnType<typeof setInterval> | null = null;
 
 const providerForm = reactive({
   name: '',
-  api_endpoint: '',
+  api_type: 'openai_only',
+  openai_endpoint: '',
+  anthropic_endpoint: '',
   api_key: '',
   models: '',
 });
@@ -1111,26 +1106,30 @@ const tagForm = reactive({
 const presets: Record<string, any> = {
   glm: {
     name: 'GLM (z.ai)',
-    openai_endpoint: 'https://open.bigmodel.cn/api/coding/paas/v4',
-    anthropic_endpoint: 'https://open.bigmodel.cn/api/anthropic',
+    api_type: 'both',
+    openai_endpoint: 'https://open.bigmodel.cn/api/coding/paas/v4/chat/completions',
+    anthropic_endpoint: 'https://open.bigmodel.cn/api/anthropic/v1/messages',
     models: 'glm-4.7-flash',
   },
   minimax: {
     name: 'MiniMax',
-    openai_endpoint: 'https://api.minimaxi.com/v1',
-    anthropic_endpoint: 'https://api.minimaxi.com/anthropic',
+    api_type: 'both',
+    openai_endpoint: 'https://api.minimaxi.com/v1/chat/completions',
+    anthropic_endpoint: 'https://api.minimaxi.com/anthropic/v1/messages',
     models: 'MiniMax-M2.7-highspeed',
   },
   kimi: {
     name: 'Kimi',
-    openai_endpoint: 'https://api.moonshot.ai/v1',
-    anthropic_endpoint: 'https://api.kimi.com/coding',
+    api_type: 'both',
+    openai_endpoint: 'https://api.kimi.com/coding/v1/chat/completions',
+    anthropic_endpoint: 'https://api.kimi.com/coding/v1/messages',
     models: 'kimi-k2.5',
   },
   mimo: {
     name: 'MiMo (Xiaomi)',
-    openai_endpoint: 'https://api.xiaomimimo.com/v1',
-    anthropic_endpoint: 'https://api.xiaomimimo.com/anthropic',
+    api_type: 'both',
+    openai_endpoint: 'https://api.xiaomimimo.com/v1/chat/completions',
+    anthropic_endpoint: 'https://api.xiaomimimo.com/v1/messages',
     models: 'mimo-v2-pro',
   },
 };
@@ -1262,15 +1261,18 @@ async function loadUsage() {
 function openProviderModal(provider: any = null) {
   editingProvider.value = provider;
   selectedPreset.value = '';
-  selectedApiType.value = 'openai';
   if (provider) {
     providerForm.name = provider.name;
-    providerForm.api_endpoint = provider.api_endpoint;
+    providerForm.api_type = provider.api_type || 'openai_only';
+    providerForm.openai_endpoint = provider.openai_endpoint || '';
+    providerForm.anthropic_endpoint = provider.anthropic_endpoint || '';
     providerForm.api_key = '';
     providerForm.models = getSingleModel(provider.models);
   } else {
     providerForm.name = '';
-    providerForm.api_endpoint = '';
+    providerForm.api_type = 'openai_only';
+    providerForm.openai_endpoint = '';
+    providerForm.anthropic_endpoint = '';
     providerForm.api_key = '';
     providerForm.models = '';
   }
@@ -1281,7 +1283,9 @@ async function saveProvider() {
   try {
     const body: any = {
       name: providerForm.name,
-      api_endpoint: providerForm.api_endpoint,
+      api_type: providerForm.api_type,
+      openai_endpoint: providerForm.openai_endpoint,
+      anthropic_endpoint: providerForm.anthropic_endpoint,
       models: providerForm.models,
     };
     if (providerForm.api_key) {
@@ -1482,11 +1486,26 @@ function getSingleModel(modelsJson: string): string {
   }
 }
 
-function fillPreset(preset: string, apiType: string) {
+function getProviderEndpoint(provider: any): string {
+  if (provider.api_type === 'anthropic_only') {
+    return provider.anthropic_endpoint || provider.api_endpoint || '';
+  }
+  if (provider.api_type === 'openai_only') {
+    return provider.openai_endpoint || provider.api_endpoint || '';
+  }
+  if (provider.openai_endpoint && provider.anthropic_endpoint) {
+    return `${provider.openai_endpoint} | ${provider.anthropic_endpoint}`;
+  }
+  return provider.openai_endpoint || provider.anthropic_endpoint || provider.api_endpoint || '';
+}
+
+function fillPreset(preset: string) {
   const p = presets[preset];
   if (p) {
     providerForm.name = p.name;
-    providerForm.api_endpoint = apiType === 'anthropic' ? p.anthropic_endpoint : p.openai_endpoint;
+    providerForm.api_type = p.api_type || 'openai_only';
+    providerForm.openai_endpoint = p.openai_endpoint || '';
+    providerForm.anthropic_endpoint = p.anthropic_endpoint || '';
     providerForm.api_key = '';
     providerForm.models = p.models;
   }
@@ -1494,13 +1513,7 @@ function fillPreset(preset: string, apiType: string) {
 
 function onPresetChange() {
   if (selectedPreset.value) {
-    fillPreset(selectedPreset.value, selectedApiType.value);
-  }
-}
-
-function onApiTypeChange() {
-  if (selectedPreset.value) {
-    fillPreset(selectedPreset.value, selectedApiType.value);
+    fillPreset(selectedPreset.value);
   }
 }
 

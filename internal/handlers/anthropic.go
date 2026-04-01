@@ -79,34 +79,38 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isOpenAICompatible := IsOpenAICompatible(resolver.Provider)
-
 	start := time.Now()
 
-	var upstreamReq map[string]interface{}
-	upstreamReq = h.buildUpstreamRequest(req, isOpenAICompatible)
+	var upstreamURL string
+	var needTransform bool
+	var upstreamUsesOpenAIFormat bool
 
+	switch resolver.Provider.APIType {
+	case models.APITypeAnthropicOnly:
+		upstreamURL = resolver.Provider.AnthropicEndpoint
+	case models.APITypeOpenAIOnly:
+		upstreamURL = resolver.Provider.OpenAIEndpoint
+		upstreamUsesOpenAIFormat = true
+		needTransform = true
+	case models.APITypeBoth:
+		upstreamURL = resolver.Provider.AnthropicEndpoint
+	default:
+		upstreamURL = resolver.Provider.AnthropicEndpoint
+	}
+
+	upstreamReq := h.buildUpstreamRequest(req, upstreamUsesOpenAIFormat)
 	reqBody, err := json.Marshal(upstreamReq)
 	if err != nil {
 		respondError(w, 500, "internal_error", "Failed to marshal request")
 		return
 	}
 
-	var upstreamURL string
-	var needTransform bool
-
-	switch resolver.Provider.APIType {
-	case models.APITypeAnthropicOnly:
-		upstreamURL = resolver.Provider.AnthropicEndpoint + "/v1/messages"
-		// Anthropic_Only provider 返回 Anthropic 格式，不需要转换
-	case models.APITypeOpenAIOnly:
-		upstreamURL = resolver.Provider.AnthropicEndpoint + "/v1/anthropic"
-		needTransform = true // 需要转换成 Anthropic 格式
-	case models.APITypeBoth:
-		upstreamURL = resolver.Provider.AnthropicEndpoint + "/v1/messages"
-	default:
-		upstreamURL = resolver.Provider.AnthropicEndpoint + "/v1/messages"
-	}
+	slog.Debug("Upstream request",
+		slog.String("provider", resolver.Provider.Name),
+		slog.String("api_type", string(resolver.Provider.APIType)),
+		slog.String("upstream_url", upstreamURL),
+		slog.String("model", req.Model),
+	)
 
 	req2, err := http.NewRequest("POST", upstreamURL, bytes.NewReader(reqBody))
 	if err != nil {
@@ -114,14 +118,7 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req2.Header.Set("Content-Type", "application/json")
-
-	if isOpenAICompatible {
-		req2.Header.Set("Authorization", "Bearer "+apiKey)
-		SetProviderHeaders(resolver.Provider, req2)
-	} else {
-		req2.Header.Set("x-api-key", apiKey)
-		req2.Header.Set("anthropic-version", "2023-06-01")
-	}
+	SetUpstreamAuthHeaders(req2, resolver.Provider, apiKey, upstreamUsesOpenAIFormat)
 
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req2)
@@ -148,6 +145,21 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 			slog.String("content_type", resp.Header.Get("Content-Type")),
 			slog.String("body", string(firstChunk)),
 		)
+
+		// First check HTTP status code - if not 200, treat as error regardless of body content
+		if resp.StatusCode != 200 {
+			slog.Warn("Upstream stream returned non-200 status",
+				slog.String("provider", resolver.Provider.Name),
+				slog.Int("status", resp.StatusCode),
+				slog.String("body", string(firstChunk)),
+			)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(resp.StatusCode)
+			w.Write(firstChunk)
+			return
+		}
+
+		// Check if the body contains an error even with 200 status
 		if errBody := parseErrorBody(firstChunk); errBody != nil {
 			slog.Warn("Upstream stream returned error",
 				slog.String("provider", resolver.Provider.Name),
@@ -203,7 +215,7 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		slog.String("body", string(body)),
 	)
 
-	usage := ParseTokenUsage(body, isOpenAICompatible)
+	usage := ParseTokenUsage(body)
 
 	services.NewUsageTracker().Log(services.UsageRecord{
 		APIKeyID:     apiKeyRecord.ID,
@@ -241,7 +253,7 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
-func (h *AnthropicHandler) buildUpstreamRequest(req AnthropicMessageRequest, isOpenAICompatible bool) map[string]interface{} {
+func (h *AnthropicHandler) buildUpstreamRequest(req AnthropicMessageRequest, upstreamUsesOpenAIFormat bool) map[string]interface{} {
 	messages := make([]map[string]interface{}, 0)
 
 	if req.System != nil {
@@ -264,7 +276,7 @@ func (h *AnthropicHandler) buildUpstreamRequest(req AnthropicMessageRequest, isO
 	}
 
 	for _, m := range req.Messages {
-		if isOpenAICompatible {
+		if upstreamUsesOpenAIFormat {
 			messages = append(messages, map[string]interface{}{"role": m.Role, "content": m.GetContent()})
 		} else {
 			messages = append(messages, map[string]interface{}{"role": m.Role, "content": m.Content})
@@ -276,7 +288,7 @@ func (h *AnthropicHandler) buildUpstreamRequest(req AnthropicMessageRequest, isO
 		"messages":   messages,
 		"max_tokens": req.MaxTokens,
 	}
-	if !isOpenAICompatible {
+	if !upstreamUsesOpenAIFormat {
 		result["stream"] = req.Stream
 	}
 	return result
@@ -305,11 +317,10 @@ func parseErrorBody(body []byte) *upstreamError {
 	for _, line := range lines {
 		if strings.HasPrefix(line, "data: ") {
 			sseData := strings.TrimPrefix(line, "data: ")
-			if errResp.Error.Type != "" || errResp.Error.Message != "" {
-				if unmarshalErr := json.Unmarshal([]byte(sseData), &errResp); unmarshalErr == nil {
-					if errResp.Error.Type != "" || errResp.Error.Message != "" {
-						return &errResp.Error
-					}
+			errResp = errorResponse{}
+			if unmarshalErr := json.Unmarshal([]byte(sseData), &errResp); unmarshalErr == nil {
+				if errResp.Error.Type != "" || errResp.Error.Message != "" {
+					return &errResp.Error
 				}
 			}
 		}

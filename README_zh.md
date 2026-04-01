@@ -104,7 +104,7 @@ curl -X POST http://127.0.0.1:18427/v1/chat/completions \
 | `PORT`           | 18427  | 服务器端口                  |
 | `ENCRYPTION_KEY` | —      | AES-GCM 32 字节密钥（必填） |
 | `LOG_LEVEL`      | info   | debug\|info\|warn\|error    |
-| `DATA_DIR`       | ./data | 数据目录                    |
+| `DATA_DIR`       | `~/.config/home-provider` | 数据目录        |
 
 ## 开发
 

@@ -3,10 +3,11 @@ node_modules/
 
 # Build outputs
 main
-./server
+server
 web/dist/
 
 # Runtime data
+data/providers.json
 data/*.json
 data/*.jsonl
 data/.encryption_key

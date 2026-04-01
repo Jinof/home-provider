@@ -21,21 +21,27 @@ func NewProviderManager() *ProviderManager {
 	return providerMgr
 }
 
-func (pm *ProviderManager) Create(name, apiEndpoint, apiKey string, model string) (string, error) {
+func (pm *ProviderManager) Create(name, apiType, openAIEndpoint, anthropicEndpoint, apiKey string, model string) (string, error) {
 	encryptedKey, err := Encrypt(apiKey)
 	if err != nil {
 		return "", err
 	}
 
+	if apiType == "" {
+		apiType = "openai_only"
+	}
+
 	provider := models.Provider{
-		ID:            uuid.New().String(),
-		Name:          name,
-		APIEndpoint:   apiEndpoint,
-		APIKeyEncrypt: encryptedKey,
-		Models:        "\"" + model + "\"",
-		IsActive:      true,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		ID:                uuid.New().String(),
+		Name:              name,
+		APIType:           models.APIType(apiType),
+		OpenAIEndpoint:    openAIEndpoint,
+		AnthropicEndpoint: anthropicEndpoint,
+		APIKeyEncrypt:     encryptedKey,
+		Models:            "\"" + model + "\"",
+		IsActive:          true,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	}
 
 	var providers []models.Provider
@@ -113,8 +119,14 @@ func (pm *ProviderManager) Update(id string, updates map[string]interface{}) err
 			if name, ok := updates["name"].(string); ok {
 				providers[i].Name = name
 			}
-			if apiEndpoint, ok := updates["api_endpoint"].(string); ok {
-				providers[i].APIEndpoint = apiEndpoint
+			if openaiEndpoint, ok := updates["openai_endpoint"].(string); ok {
+				providers[i].OpenAIEndpoint = openaiEndpoint
+			}
+			if anthropicEndpoint, ok := updates["anthropic_endpoint"].(string); ok {
+				providers[i].AnthropicEndpoint = anthropicEndpoint
+			}
+			if apiType, ok := updates["api_type"].(string); ok {
+				providers[i].APIType = models.APIType(apiType)
 			}
 			if apiKeyEncrypt, ok := updates["api_key_encrypt"].(string); ok {
 				providers[i].APIKeyEncrypt = apiKeyEncrypt

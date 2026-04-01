@@ -104,7 +104,7 @@ Client → API Key → Tag → Provider → AI Response
 | `PORT`           | 18427   | Server port                        |
 | `ENCRYPTION_KEY` | —       | 32-byte key for AES-GCM (required) |
 | `LOG_LEVEL`      | info    | debug\|info\|warn\|error           |
-| `DATA_DIR`       | ./data  | Data directory                     |
+| `DATA_DIR`       | `~/.config/home-provider` | Data directory          |
 
 ## Development
 

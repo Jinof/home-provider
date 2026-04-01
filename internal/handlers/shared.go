@@ -41,7 +41,7 @@ func ResolveProvider(r *http.Request, model string, pm *services.ProviderManager
 	return &ProviderResolver{Provider: provider, Tag: tag}, nil
 }
 
-func IsOpenAICompatible(provider *models.Provider) bool {
+func UsesBearerAuthForAnthropicEndpoint(provider *models.Provider) bool {
 	return provider.Name == ProviderKimi || provider.Name == ProviderMiniMax
 }
 
@@ -66,10 +66,10 @@ type openAIResponse struct {
 }
 
 type anthropicResponse struct {
-	ID         string `json:"id"`
-	Type       string `json:"type"`
-	Role       string `json:"role"`
-	Content    []struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"`
+	Role    string `json:"role"`
+	Content []struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"content"`
@@ -87,23 +87,54 @@ func SetProviderHeaders(provider *models.Provider, req *http.Request) {
 	}
 }
 
+func SetUpstreamAuthHeaders(req *http.Request, provider *models.Provider, apiKey string, useOpenAIAuth bool) {
+	if useOpenAIAuth {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		SetProviderHeaders(provider, req)
+		return
+	}
+
+	if UsesBearerAuthForAnthropicEndpoint(provider) {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		SetProviderHeaders(provider, req)
+	} else {
+		req.Header.Set("x-api-key", apiKey)
+	}
+	req.Header.Set("anthropic-version", "2023-06-01")
+}
+
 type TokenUsage struct {
 	InputTokens  int
 	OutputTokens int
 }
 
-func ParseTokenUsage(body []byte, isOpenAICompatible bool) TokenUsage {
+func ParseTokenUsage(body []byte) TokenUsage {
 	var usage TokenUsage
-	var parsed struct {
+	var anthropicParsed struct {
 		Usage struct {
 			InputTokens  int `json:"input_tokens"`
 			OutputTokens int `json:"output_tokens"`
 		} `json:"usage"`
 	}
-	if json.Unmarshal(body, &parsed) == nil {
-		usage.InputTokens = parsed.Usage.InputTokens
-		usage.OutputTokens = parsed.Usage.OutputTokens
+
+	if json.Unmarshal(body, &anthropicParsed) == nil &&
+		(anthropicParsed.Usage.InputTokens != 0 || anthropicParsed.Usage.OutputTokens != 0) {
+		usage.InputTokens = anthropicParsed.Usage.InputTokens
+		usage.OutputTokens = anthropicParsed.Usage.OutputTokens
+		return usage
 	}
+
+	var openAIParsed struct {
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+		} `json:"usage"`
+	}
+	if json.Unmarshal(body, &openAIParsed) == nil {
+		usage.InputTokens = openAIParsed.Usage.PromptTokens
+		usage.OutputTokens = openAIParsed.Usage.CompletionTokens
+	}
+
 	return usage
 }
 

@@ -53,8 +53,9 @@
     "modal_edit": "Edit Provider",
     "quick_preset": "Quick Preset",
     "api_type": "API Type",
-    "api_type_openai": "OpenAI Compatible (/v1/chat/completions)",
-    "api_type_anthropic": "Anthropic Compatible (/v1/messages)",
+    "api_type_openai_only": "OpenAI Only (/v1/chat/completions)",
+    "api_type_anthropic_only": "Anthropic Only (/v1/messages)",
+    "api_type_both": "Both Supported",
     "presets": {
       "select": "— Select a preset —",
       "glm": "GLM (z.ai)",
@@ -64,7 +65,9 @@
     },
     "form": {
       "name": "Name",
-      "endpoint": "API Endpoint",
+      "api_type": "API Type",
+      "openai_endpoint": "OpenAI Endpoint",
+      "anthropic_endpoint": "Anthropic Endpoint",
       "key": "API Key",
       "model": "Model",
       "save": "Save",

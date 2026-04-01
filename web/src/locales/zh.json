@@ -53,8 +53,9 @@
     "modal_edit": "编辑提供商",
     "quick_preset": "快速预设",
     "api_type": "API 类型",
-    "api_type_openai": "兼容 OpenAI（/v1/chat/completions）",
-    "api_type_anthropic": "兼容 Anthropic（/v1/messages）",
+    "api_type_openai_only": "仅 OpenAI（/v1/chat/completions）",
+    "api_type_anthropic_only": "仅 Anthropic（/v1/messages）",
+    "api_type_both": "两者都支持",
     "presets": {
       "select": "— 选择预设 —",
       "glm": "GLM（智谱 AI）",
@@ -64,7 +65,9 @@
     },
     "form": {
       "name": "名称",
-      "endpoint": "接口地址",
+      "api_type": "API 类型",
+      "openai_endpoint": "OpenAI 接口地址",
+      "anthropic_endpoint": "Anthropic 接口地址",
       "key": "API 密钥",
       "model": "模型",
       "save": "保存",

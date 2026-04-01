@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"home-provider/internal/middleware"
@@ -81,24 +82,33 @@ func (h *OpenAIHandler) ChatCompletions(w http.ResponseWriter, r *http.Request) 
 
 	start := time.Now()
 
-	reqBody, err := json.Marshal(req)
+	upstreamReq := any(req)
+	upstreamURL := resolver.Provider.OpenAIEndpoint
+	var needTransform bool
+
+	switch resolver.Provider.APIType {
+	case models.APITypeAnthropicOnly:
+		upstreamReq = buildAnthropicRequestFromOpenAI(req)
+		upstreamURL = resolver.Provider.AnthropicEndpoint
+		needTransform = true
+	case models.APITypeOpenAIOnly, models.APITypeBoth:
+		// OpenAI_Only and Both providers return OpenAI format directly.
+	default:
+		// Default behavior: no transformation.
+	}
+
+	reqBody, err := json.Marshal(upstreamReq)
 	if err != nil {
 		respondError(w, 500, "internal_error", "Failed to marshal request")
 		return
 	}
 
-	var needTransform bool
-	switch resolver.Provider.APIType {
-	case models.APITypeAnthropicOnly:
-		// Anthropic_Only provider's OpenAI endpoint returns Anthropic format, needs transformation
-		needTransform = true
-	case models.APITypeOpenAIOnly, models.APITypeBoth:
-		// OpenAI_Only and Both providers return OpenAI format directly
-	default:
-		// Default behavior: no transformation
-	}
-
-	upstreamURL := resolver.Provider.OpenAIEndpoint + "/v1/chat/completions"
+	slog.Debug("Upstream request",
+		slog.String("provider", resolver.Provider.Name),
+		slog.String("api_type", string(resolver.Provider.APIType)),
+		slog.String("upstream_url", upstreamURL),
+		slog.String("model", req.Model),
+	)
 
 	req2, err := http.NewRequest("POST", upstreamURL, bytes.NewReader(reqBody))
 	if err != nil {
@@ -106,8 +116,7 @@ func (h *OpenAIHandler) ChatCompletions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	req2.Header.Set("Content-Type", "application/json")
-	req2.Header.Set("Authorization", "Bearer "+apiKey)
-	SetProviderHeaders(resolver.Provider, req2)
+	SetUpstreamAuthHeaders(req2, resolver.Provider, apiKey, resolver.Provider.APIType != models.APITypeAnthropicOnly)
 
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req2)
@@ -119,9 +128,13 @@ func (h *OpenAIHandler) ChatCompletions(w http.ResponseWriter, r *http.Request) 
 	defer resp.Body.Close()
 
 	if req.Stream {
-		w.Header().Set("Content-Type", "text/event-stream")
+		contentType := resp.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = "text/event-stream"
+		}
+		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("Cache-Control", "no-cache")
-		w.WriteHeader(200)
+		w.WriteHeader(resp.StatusCode)
 		io.Copy(w, resp.Body)
 		return
 	}
@@ -135,7 +148,7 @@ func (h *OpenAIHandler) ChatCompletions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	usage := ParseTokenUsage(body, true)
+	usage := ParseTokenUsage(body)
 
 	services.NewUsageTracker().Log(services.UsageRecord{
 		APIKeyID:     apiKeyRecord.ID,
@@ -192,6 +205,50 @@ func (h *OpenAIHandler) ChatCompletions(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(body)
+}
+
+func buildAnthropicRequestFromOpenAI(req ChatCompletionRequest) map[string]interface{} {
+	const defaultAnthropicMaxTokens = 1024
+
+	messages := make([]map[string]interface{}, 0, len(req.Messages))
+	systemParts := make([]string, 0)
+	for _, message := range req.Messages {
+		content := message.GetContent()
+		if message.Role == "system" {
+			if content != "" {
+				systemParts = append(systemParts, content)
+			}
+			continue
+		}
+
+		messages = append(messages, map[string]interface{}{
+			"role":    message.Role,
+			"content": content,
+		})
+	}
+
+	maxTokens := req.MaxTokens
+	if maxTokens <= 0 {
+		maxTokens = defaultAnthropicMaxTokens
+	}
+
+	upstreamReq := map[string]interface{}{
+		"model":      req.Model,
+		"messages":   messages,
+		"max_tokens": maxTokens,
+		"stream":     req.Stream,
+	}
+	if len(systemParts) > 0 {
+		upstreamReq["system"] = strings.Join(systemParts, "\n\n")
+	}
+	if req.Temperature != 0 {
+		upstreamReq["temperature"] = req.Temperature
+	}
+	if req.TopP != 0 {
+		upstreamReq["top_p"] = req.TopP
+	}
+
+	return upstreamReq
 }
 
 func (h *OpenAIHandler) ListModels(w http.ResponseWriter, r *http.Request) {

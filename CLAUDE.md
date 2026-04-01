@@ -89,4 +89,4 @@ apiKey := middleware.GetAPIKey(r)  // Returns *models.APIKey or nil
 | `PORT` | 18427 | Server port |
 | `LOG_LEVEL` | info | debug\|info\|warn\|error |
 | `ENCRYPTION_KEY` | — | 32-byte key for AES-GCM (required) |
-| `DATA_DIR` | ./data | JSON data files directory |
+| `DATA_DIR` | `~/.config/home-provider` | JSON data files directory |
