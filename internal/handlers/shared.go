@@ -65,6 +65,22 @@ type openAIResponse struct {
 	} `json:"usage"`
 }
 
+type anthropicResponse struct {
+	ID         string `json:"id"`
+	Type       string `json:"type"`
+	Role       string `json:"role"`
+	Content    []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"content"`
+	Model      string `json:"model"`
+	StopReason string `json:"stop_reason"`
+	Usage      struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
+}
+
 func SetProviderHeaders(provider *models.Provider, req *http.Request) {
 	if provider.Name == ProviderKimi {
 		req.Header.Set("User-Agent", "KimiCLI/1.3")
@@ -120,6 +136,46 @@ func TransformOpenAIResponseToAnthropic(openAIBody []byte, model string) map[str
 		"usage": map[string]interface{}{
 			"input_tokens":  openAIResp.Usage.PromptTokens,
 			"output_tokens": openAIResp.Usage.CompletionTokens,
+		},
+	}
+}
+
+func TransformAnthropicResponseToOpenAI(anthropicBody []byte) map[string]interface{} {
+	var anthropicResp anthropicResponse
+	if err := json.Unmarshal(anthropicBody, &anthropicResp); err != nil {
+		slog.Warn("Failed to parse Anthropic response for transformation", "error", err)
+		return nil
+	}
+
+	content := ""
+	if len(anthropicResp.Content) > 0 && anthropicResp.Content[0].Type == "text" {
+		content = anthropicResp.Content[0].Text
+	}
+
+	finishReason := "stop"
+	if anthropicResp.StopReason == "max_tokens" {
+		finishReason = "length"
+	}
+
+	return map[string]interface{}{
+		"id":      anthropicResp.ID,
+		"object":  "chat.completion",
+		"created": time.Now().Unix(),
+		"model":   anthropicResp.Model,
+		"choices": []map[string]interface{}{
+			{
+				"index": 0,
+				"message": map[string]interface{}{
+					"role":    "assistant",
+					"content": content,
+				},
+				"finish_reason": finishReason,
+			},
+		},
+		"usage": map[string]interface{}{
+			"prompt_tokens":     anthropicResp.Usage.InputTokens,
+			"completion_tokens": anthropicResp.Usage.OutputTokens,
+			"total_tokens":      anthropicResp.Usage.InputTokens + anthropicResp.Usage.OutputTokens,
 		},
 	}
 }
