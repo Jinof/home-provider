@@ -392,7 +392,7 @@ func TestVirtualModelManager_EnsureDefaultVirtualModels(t *testing.T) {
 		t.Fatalf("unexpected error ensuring default virtual models: %v", err)
 	}
 
-	for _, name := range []string{"default", "planner", "coder", "designer"} {
+	for _, name := range []string{"default", "planner", "coder", "designer", "researcher", "reviewer", "fast", "deep"} {
 		virtualModel, err := vm.GetByName(name)
 		if err != nil {
 			t.Fatalf("unexpected error loading %s: %v", name, err)
@@ -402,6 +402,53 @@ func TestVirtualModelManager_EnsureDefaultVirtualModels(t *testing.T) {
 		}
 		if virtualModel.ProviderID != provider.ID {
 			t.Fatalf("expected provider %s for %s, got %s", provider.ID, name, virtualModel.ProviderID)
+		}
+	}
+}
+
+func TestVirtualModelManager_EnsureDefaultVirtualModels_UsesSemanticProviders(t *testing.T) {
+	env := setupVirtualModelTestEnv(t)
+	defer env.cleanup()
+	env.setDataDir()
+	defer env.unsetDataDir()
+
+	providers := []models.Provider{
+		{ID: "provider-fast", Name: "Fast", IsActive: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		{ID: "provider-deep", Name: "Deep", IsActive: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+	}
+	env.createProviderFile(t, providers)
+
+	now := time.Now()
+	env.writeJSON(t, "virtual_models.json", []models.VirtualModel{
+		{ID: "vm-think", Name: "think", ProviderID: "provider-deep", CreatedAt: now, UpdatedAt: now},
+		{ID: "vm-work", Name: "work", ProviderID: "provider-fast", CreatedAt: now, UpdatedAt: now},
+		{ID: "vm-default", Name: "default", ProviderID: "provider-fast", CreatedAt: now, UpdatedAt: now},
+	})
+
+	vm := NewVirtualModelManager()
+	if err := vm.EnsureDefaultVirtualModels(""); err != nil {
+		t.Fatalf("unexpected error ensuring semantic default virtual models: %v", err)
+	}
+
+	deepNames := []string{"planner", "researcher", "reviewer", "deep"}
+	for _, name := range deepNames {
+		virtualModel, err := vm.GetByName(name)
+		if err != nil || virtualModel == nil {
+			t.Fatalf("expected deep virtual model %s: %v", name, err)
+		}
+		if virtualModel.ProviderID != "provider-deep" {
+			t.Fatalf("expected %s to use provider-deep, got %s", name, virtualModel.ProviderID)
+		}
+	}
+
+	fastNames := []string{"coder", "designer", "fast"}
+	for _, name := range fastNames {
+		virtualModel, err := vm.GetByName(name)
+		if err != nil || virtualModel == nil {
+			t.Fatalf("expected fast virtual model %s: %v", name, err)
+		}
+		if virtualModel.ProviderID != "provider-fast" {
+			t.Fatalf("expected %s to use provider-fast, got %s", name, virtualModel.ProviderID)
 		}
 	}
 }

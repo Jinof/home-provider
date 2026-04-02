@@ -19,7 +19,26 @@ var virtualModelManagerInstance *VirtualModelManager
 const DefaultVirtualModelName = "default"
 const virtualModelsPath = "./data/virtual_models.json"
 
-var defaultVirtualModelNames = []string{DefaultVirtualModelName, "planner", "coder", "designer"}
+var defaultVirtualModelNames = []string{
+	DefaultVirtualModelName,
+	"planner",
+	"coder",
+	"designer",
+	"researcher",
+	"reviewer",
+	"fast",
+	"deep",
+}
+
+var preferredVirtualModelProviders = map[string][]string{
+	"planner":    {"think", DefaultVirtualModelName, "latest", "work"},
+	"researcher": {"think", "planner", DefaultVirtualModelName, "latest", "work"},
+	"reviewer":   {"think", "planner", DefaultVirtualModelName, "latest", "work"},
+	"deep":       {"think", "planner", DefaultVirtualModelName, "latest", "work"},
+	"coder":      {"work", DefaultVirtualModelName, "latest", "think"},
+	"designer":   {"work", "coder", DefaultVirtualModelName, "latest", "think"},
+	"fast":       {"work", "coder", DefaultVirtualModelName, "latest", "think"},
+}
 
 var virtualModelNameRegex = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
@@ -108,20 +127,57 @@ func (vm *VirtualModelManager) EnsureDefaultVirtualModels(providerID string, nam
 		return err
 	}
 
+	virtualModels, err := vm.load()
+	if err != nil {
+		return err
+	}
+
 	for _, name := range names {
-		existing, err := vm.GetByName(name)
-		if err != nil {
-			return err
-		}
+		existing := findVirtualModelByName(virtualModels, name)
 		if existing != nil {
 			continue
 		}
 
-		if _, err := vm.Create(name, resolvedProviderID); err != nil && err.Error() != "virtual model with this name already exists" {
+		providerForName := vm.providerIDForDefaultVirtualModel(name, resolvedProviderID, virtualModels)
+		id, err := vm.Create(name, providerForName)
+		if err != nil {
+			if err.Error() == "virtual model with this name already exists" {
+				continue
+			}
 			return err
+		}
+
+		created, err := vm.Get(id)
+		if err == nil && created != nil {
+			virtualModels = append(virtualModels, *created)
 		}
 	}
 
+	return nil
+}
+
+func (vm *VirtualModelManager) providerIDForDefaultVirtualModel(name, fallbackProviderID string, virtualModels []models.VirtualModel) string {
+	preferredNames, ok := preferredVirtualModelProviders[name]
+	if !ok {
+		return fallbackProviderID
+	}
+
+	for _, preferredName := range preferredNames {
+		virtualModel := findVirtualModelByName(virtualModels, preferredName)
+		if virtualModel != nil && virtualModel.ProviderID != "" {
+			return virtualModel.ProviderID
+		}
+	}
+
+	return fallbackProviderID
+}
+
+func findVirtualModelByName(virtualModels []models.VirtualModel, name string) *models.VirtualModel {
+	for i := range virtualModels {
+		if virtualModels[i].Name == name {
+			return &virtualModels[i]
+		}
+	}
 	return nil
 }
 
