@@ -299,45 +299,56 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
         <div v-if="!providers || providers.length === 0" class="empty-state">
           {{ $t('providers.empty') }}
         </div>
-        <table v-if="providers && providers.length > 0">
-          <thead>
-            <tr>
-              <th>{{ $t('providers.name') }}</th>
-              <th>{{ $t('providers.endpoint') }}</th>
-              <th>{{ $t('providers.model') }}</th>
-              <th>{{ $t('providers.status') }}</th>
-              <th>{{ $t('providers.actions') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="p in providers || []" :key="p.id">
-              <td>{{ p.name }}</td>
-              <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis">
-                {{ getProviderEndpoint(p) }}
-              </td>
-              <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis">
-                {{ getModels(p.models).join(', ') }}
-              </td>
-              <td>
-                <span class="badge" :class="p.is_active ? 'badge-active' : 'badge-inactive'">
-                  {{ p.is_active ? $t('providers.active') : $t('providers.inactive') }}
-                </span>
-              </td>
-              <td>
-                <button
-                  class="btn btn-sm"
-                  style="background: #eee; margin-right: 4px"
-                  @click="openProviderModal(p)"
+        <div v-if="providers && providers.length > 0" class="provider-grid">
+          <div v-for="p in providers || []" :key="p.id" class="provider-card">
+            <div class="provider-card-header">
+              <div>
+                <h3 class="provider-card-title">{{ p.name }}</h3>
+                <div class="provider-card-subtitle">{{ getProviderTypeLabel(p.api_type) }}</div>
+              </div>
+              <span class="badge" :class="p.is_active ? 'badge-active' : 'badge-inactive'">
+                {{ p.is_active ? $t('providers.active') : $t('providers.inactive') }}
+              </span>
+            </div>
+
+            <div class="provider-card-section">
+              <div class="provider-card-label">{{ $t('providers.model') }}</div>
+              <div v-if="getModels(p.models).length > 0" class="provider-model-list">
+                <code
+                  v-for="model in getModels(p.models)"
+                  :key="model"
+                  class="provider-model-chip"
+                  >{{ model }}</code
                 >
-                  {{ $t('providers.edit') }}
-                </button>
-                <button class="btn btn-danger btn-sm" @click="deleteProvider(p.id)">
-                  {{ $t('providers.delete') }}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </div>
+              <div v-else class="provider-card-empty">-</div>
+            </div>
+
+            <div class="provider-card-section">
+              <div class="provider-card-label">{{ $t('providers.endpoint') }}</div>
+              <div v-if="getProviderEndpoints(p).length > 0" class="provider-endpoint-list">
+                <div
+                  v-for="endpoint in getProviderEndpoints(p)"
+                  :key="endpoint.label + endpoint.value"
+                  class="provider-endpoint-item"
+                >
+                  <div class="provider-endpoint-label">{{ endpoint.label }}</div>
+                  <code class="provider-endpoint-value">{{ endpoint.value }}</code>
+                </div>
+              </div>
+              <div v-else class="provider-card-empty">-</div>
+            </div>
+
+            <div class="provider-card-actions">
+              <button class="btn btn-sm provider-edit-btn" @click="openProviderModal(p)">
+                {{ $t('providers.edit') }}
+              </button>
+              <button class="btn btn-danger btn-sm" @click="deleteProvider(p.id)">
+                {{ $t('providers.delete') }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1503,17 +1514,33 @@ function getSingleModel(modelsJson: string): string {
   }
 }
 
-function getProviderEndpoint(provider: any): string {
-  if (provider.api_type === 'anthropic_only') {
-    return provider.anthropic_endpoint || provider.api_endpoint || '';
+function getProviderEndpoints(provider: any): Array<{ label: string; value: string }> {
+  const endpoints: Array<{ label: string; value: string }> = [];
+
+  if (provider.openai_endpoint) {
+    endpoints.push({ label: 'OpenAI', value: provider.openai_endpoint });
   }
-  if (provider.api_type === 'openai_only') {
-    return provider.openai_endpoint || provider.api_endpoint || '';
+  if (provider.anthropic_endpoint) {
+    endpoints.push({ label: 'Anthropic', value: provider.anthropic_endpoint });
   }
-  if (provider.openai_endpoint && provider.anthropic_endpoint) {
-    return `${provider.openai_endpoint} | ${provider.anthropic_endpoint}`;
+  if (endpoints.length === 0 && provider.api_endpoint) {
+    endpoints.push({ label: 'API', value: provider.api_endpoint });
   }
-  return provider.openai_endpoint || provider.anthropic_endpoint || provider.api_endpoint || '';
+
+  return endpoints;
+}
+
+function getProviderTypeLabel(apiType: string): string {
+  switch (apiType) {
+    case 'openai_only':
+      return t('providers.api_type_openai_only');
+    case 'anthropic_only':
+      return t('providers.api_type_anthropic_only');
+    case 'both':
+      return t('providers.api_type_both');
+    default:
+      return apiType || '-';
+  }
 }
 
 function fillPreset(preset: string) {
@@ -1884,6 +1911,102 @@ th {
   padding: 10px;
   border-radius: 4px;
   margin-bottom: 15px;
+}
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+.provider-card {
+  border: 1px solid #e9e9ee;
+  border-radius: 10px;
+  padding: 18px;
+  background: linear-gradient(180deg, #fff 0%, #fcfcfe 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.provider-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.provider-card-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0;
+}
+.provider-card-subtitle {
+  font-size: 0.8rem;
+  color: #777;
+  margin-top: 4px;
+}
+.provider-card-section + .provider-card-section {
+  margin-top: 14px;
+}
+.provider-card-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.provider-model-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.provider-model-chip {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f2f3f7;
+  color: #3a3a5a;
+  font-size: 0.8rem;
+}
+.provider-endpoint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.provider-endpoint-item {
+  background: #f7f8fb;
+  border: 1px solid #eceef5;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.provider-endpoint-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 6px;
+}
+.provider-endpoint-value {
+  display: block;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: #2f3b52;
+}
+.provider-card-empty {
+  color: #999;
+  font-size: 0.9rem;
+}
+.provider-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.provider-edit-btn {
+  background: #eee;
+}
+.provider-edit-btn:hover {
+  background: #e3e3e3;
 }
 
 /* Language Switcher */
