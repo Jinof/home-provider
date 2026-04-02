@@ -66,8 +66,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := services.NewVirtualModelManager().EnsureDefaultVirtualModel(""); err != nil {
-		slog.Warn("Failed to ensure default virtual model", "error", err)
+	if err := services.NewVirtualModelManager().EnsureDefaultVirtualModels(""); err != nil {
+		slog.Warn("Failed to ensure default virtual models", "error", err)
 	}
 
 	anthropicHandler := handlers.NewAnthropicHandler()
