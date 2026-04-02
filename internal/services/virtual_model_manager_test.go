@@ -371,3 +371,37 @@ func TestVirtualModelManager_Delete(t *testing.T) {
 		}
 	})
 }
+
+func TestVirtualModelManager_EnsureDefaultVirtualModels(t *testing.T) {
+	env := setupVirtualModelTestEnv(t)
+	defer env.cleanup()
+	env.setDataDir()
+	defer env.unsetDataDir()
+
+	provider := models.Provider{
+		ID:        "test-provider-defaults",
+		Name:      "TestProvider",
+		IsActive:  true,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	env.createProviderFile(t, []models.Provider{provider})
+
+	vm := NewVirtualModelManager()
+	if err := vm.EnsureDefaultVirtualModels(""); err != nil {
+		t.Fatalf("unexpected error ensuring default virtual models: %v", err)
+	}
+
+	for _, name := range []string{"default", "planner", "coder", "designer"} {
+		virtualModel, err := vm.GetByName(name)
+		if err != nil {
+			t.Fatalf("unexpected error loading %s: %v", name, err)
+		}
+		if virtualModel == nil {
+			t.Fatalf("expected virtual model %s to exist", name)
+		}
+		if virtualModel.ProviderID != provider.ID {
+			t.Fatalf("expected provider %s for %s, got %s", provider.ID, name, virtualModel.ProviderID)
+		}
+	}
+}

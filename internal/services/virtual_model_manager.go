@@ -19,6 +19,8 @@ var virtualModelManagerInstance *VirtualModelManager
 const DefaultVirtualModelName = "default"
 const virtualModelsPath = "./data/virtual_models.json"
 
+var defaultVirtualModelNames = []string{DefaultVirtualModelName, "planner", "coder", "designer"}
+
 var virtualModelNameRegex = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 type VirtualModelManager struct{}
@@ -93,14 +95,37 @@ func (vm *VirtualModelManager) GetByName(name string) (*models.VirtualModel, err
 }
 
 func (vm *VirtualModelManager) EnsureDefaultVirtualModel(providerID string) error {
-	existing, err := vm.GetByName(DefaultVirtualModelName)
+	return vm.EnsureDefaultVirtualModels(providerID, DefaultVirtualModelName)
+}
+
+func (vm *VirtualModelManager) EnsureDefaultVirtualModels(providerID string, names ...string) error {
+	if len(names) == 0 {
+		names = defaultVirtualModelNames
+	}
+
+	resolvedProviderID, err := vm.resolveDefaultProviderID(providerID)
 	if err != nil {
 		return err
 	}
-	if existing != nil {
-		return nil
+
+	for _, name := range names {
+		existing, err := vm.GetByName(name)
+		if err != nil {
+			return err
+		}
+		if existing != nil {
+			continue
+		}
+
+		if _, err := vm.Create(name, resolvedProviderID); err != nil && err.Error() != "virtual model with this name already exists" {
+			return err
+		}
 	}
 
+	return nil
+}
+
+func (vm *VirtualModelManager) resolveDefaultProviderID(providerID string) (string, error) {
 	if providerID == "" {
 		providers, err := NewProviderManager().List()
 		if err == nil && len(providers) > 0 {
@@ -108,18 +133,16 @@ func (vm *VirtualModelManager) EnsureDefaultVirtualModel(providerID string) erro
 		}
 	}
 
-	if providerID != "" {
-		providerMgr := NewProviderManager()
-		if _, err := providerMgr.Get(providerID); err != nil {
-			return err
-		}
+	if providerID == "" {
+		return "", errors.New("provider not found")
 	}
 
-	_, err = vm.Create(DefaultVirtualModelName, providerID)
-	if err != nil && err.Error() == "virtual model with this name already exists" {
-		return nil
+	providerMgr := NewProviderManager()
+	if _, err := providerMgr.Get(providerID); err != nil {
+		return "", err
 	}
-	return err
+
+	return providerID, nil
 }
 
 func (vm *VirtualModelManager) List() ([]models.VirtualModel, error) {
