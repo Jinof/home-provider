@@ -8,7 +8,7 @@ API proxy server that routes LLM requests (OpenAI-compatible + Anthropic) throug
 
 - **OpenAI-compatible API** — `POST /v1/chat/completions`
 - **Anthropic Messages API** — `POST /v1/messages`
-- **Tag-based Model Routing** — Use unified tag names (e.g., `latest`) across machines and agents
+- **Virtual Model Routing** — Use unified virtual model names (e.g., `latest`) across machines and agents
 - **API Key Management** — Generate, manage, and track API keys with AES-GCM encryption
 - **Usage Tracking** — Per-key and global statistics with time series data
 - **Multi-language Support** — English and Chinese (i18n)
@@ -48,11 +48,11 @@ Go to **Providers** tab → Add Provider:
 - **Name**: e.g., `MiniMax`
 - **Endpoint**: e.g., `https://api.minimax.io`
 - **API Key**: Your provider's API key
-- **Models**: e.g., `["MiniMax-M2.7-highspeed"]`
+- **Models**: e.g., `"MiniMax-M2.7-highspeed"`
 
-### 2. Create a Tag
+### 2. Create a Virtual Model
 
-Go to **Tags** tab → Create Tag:
+Go to **Virtual Models** tab → Create Virtual Model:
 
 - **Name**: e.g., `latest`
 - **Provider**: Select the provider you added
@@ -88,12 +88,12 @@ curl -X POST http://127.0.0.1:18427/v1/chat/completions \
 ## How It Works
 
 ```
-Client → API Key → Tag → Provider → AI Response
+Client → API Key → Virtual Model → Provider → AI Response
 ```
 
-1. Client sends request with API key and tag name (e.g., `latest`)
+1. Client sends request with API key and virtual model name (e.g., `latest`)
 2. API key is validated
-3. Tag is resolved to a specific provider and model
+3. Virtual model is resolved to a specific provider and model
 4. Request is forwarded to the provider
 5. Response is returned to client
 

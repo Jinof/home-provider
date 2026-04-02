@@ -56,12 +56,12 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resolver, err := ResolveProvider(r, req.Model, services.NewProviderManager(), services.NewTagManager())
+	resolver, err := ResolveProvider(r, req.Model, services.NewProviderManager(), services.NewVirtualModelManager())
 	if err != nil {
 		slog.Warn("Provider resolution failed", "model", req.Model, "error", err)
 		respondErrorWithDetails(w, 400, "invalid_request_error",
-			"Model/tag not found: "+req.Model,
-			"Check available tags in the Tags page. Common tags: 'latest', 'default'",
+			"Model/virtual model not found: "+req.Model,
+			"Check available virtual models in the Virtual Models page. Common names: 'latest', 'default'",
 			map[string]interface{}{"requested_model": req.Model})
 		return
 	}
@@ -227,8 +227,8 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		StatusCode:   resp.StatusCode,
 	})
 
-	tagName := resolver.TagName()
-	LogRequest(start, apiKeyRecord, r.Method, r.URL.Path, resp.StatusCode, req.Model, tagName, resolver.Provider.Name)
+	virtualModelName := resolver.VirtualModelName()
+	LogRequest(start, apiKeyRecord, r.Method, r.URL.Path, resp.StatusCode, req.Model, virtualModelName, resolver.Provider.Name)
 
 	// Apply transformation if needed (OpenAI_Only provider's Anthropic endpoint returns OpenAI format)
 	if needTransform {

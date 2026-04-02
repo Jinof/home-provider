@@ -4,15 +4,15 @@
   },
   "tabs": {
     "guide": "Usage",
+    "virtual_models": "Virtual Models",
     "providers": "Providers",
     "keys": "API Keys",
     "stats": "Stats",
-    "logs": "Logs",
-    "tags": "Tags"
+    "logs": "Logs"
   },
   "guide": {
     "api_usage": "API Usage",
-    "intro": "Home Provider solves cross-machine, cross-agent model management. Use unified Tag names (e.g., latest) in your API requests - Home Provider automatically routes to the configured provider and model.",
+    "intro": "Home Provider solves cross-machine, cross-agent model management. Use unified virtual model names (e.g., latest) in your API requests, and Home Provider automatically routes to the configured provider and model.",
     "claude_config": "Claude Code Configuration",
     "claude_config_hint": "Set in ~/.claude/settings.json or environment",
     "base_url": "Base URL",
@@ -22,15 +22,15 @@
     "chat_completions": "POST /v1/chat/completions (OpenAI-compatible)",
     "messages": "POST /v1/messages (Anthropic Messages API)",
     "model": "Model",
-    "model_hint": "Use latest to auto-select the latest model from your active provider. The active provider is set per API key.",
-    "switch_provider": "To switch provider: Admin → API Keys → select key → set active provider, then use latest model name.",
+    "model_hint": "Use latest to route through your default virtual model.",
+    "switch_provider": "To change routing, edit the virtual model in Admin → Virtual Models.",
     "list_models": "GET /v1/models",
-    "model_routing": "Model Routing (Tag System)",
-    "model_routing_hint": "Use the model field to specify a Tag name. Tags map to specific providers:",
-    "table_tag": "Tag",
+    "model_routing": "Model Routing (Virtual Model System)",
+    "model_routing_hint": "Use the model field to specify a virtual model name. Virtual models map to specific providers:",
+    "table_virtual_model": "Virtual Model",
     "table_provider": "Provider",
     "table_model": "Actual Model",
-    "table_empty": "No tags configured yet",
+    "table_empty": "No virtual models configured yet",
     "curl_example": "cURL Example"
   },
   "providers": {
@@ -77,7 +77,7 @@
   "keys": {
     "title": "API Keys",
     "guide_title": "About API Keys",
-    "guide_desc": "API keys authenticate your requests to Home Provider. Create keys for each application or user - each key can be assigned to a different provider for routing.",
+    "guide_desc": "API keys authenticate your requests to Home Provider. Create keys for each application or user.",
     "create": "+ Create Key",
     "empty": "No API keys created yet.",
     "name": "Name",
@@ -122,15 +122,15 @@
     "key_name": "Name",
     "key_prefix": "Prefix",
     "usage_guide_title": "About Usage Statistics",
-    "usage_guide_desc": "Home Provider solves cross-machine, cross-agent model management. Use Tag names (e.g., 'latest') in your API requests - Tags map to specific provider models, enabling unified access across different AI backends.",
+    "usage_guide_desc": "Home Provider solves cross-machine, cross-agent model management. Use virtual model names (e.g., 'latest') in your API requests - virtual models map to specific provider models, enabling unified access across different AI backends.",
     "diagram_title": "How It Works",
     "diagram_api_key": "API Key",
-    "diagram_tag": "Tag",
+    "diagram_virtual_model": "Virtual Model",
     "diagram_provider": "Provider",
     "diagram_flow_auth": "Bearer <key>",
-    "diagram_flow_model": "model: <tag>",
-    "diagram_step1": "Use unified tag across machines/agents",
-    "diagram_step2": "Tag maps to specific model",
+    "diagram_flow_model": "model: <virtual_model>",
+    "diagram_step1": "Use one virtual model across machines/agents",
+    "diagram_step2": "Virtual model maps to a provider model",
     "diagram_step3": "Provider processes request"
   },
   "logs": {
@@ -161,7 +161,8 @@
       "status": "Status",
       "latency": "Latency",
       "key_prefix": "Key",
-      "model": "Model"
+      "model": "Model",
+      "virtual_model": "Virtual Model"
     }
   },
   "lang": {
@@ -169,24 +170,24 @@
     "en": "English",
     "zh": "中文"
   },
-  "tags": {
-    "title": "Tags",
-    "guide_title": "About Tags",
-    "guide_desc": "Tags enable model routing - use a tag name (e.g., 'latest') in your API request model field, and Home Provider will route it to the configured provider and model.",
-    "add": "+ Add Tag",
-    "empty": "No tags configured. Add your first tag to route requests.",
-    "name": "Tag Name",
+  "virtual_models": {
+    "title": "Virtual Models",
+    "guide_title": "About Virtual Models",
+    "guide_desc": "Virtual models are stable names that route requests to a configured provider and its underlying model.",
+    "add": "+ Add Virtual Model",
+    "empty": "No virtual models configured. Add your first virtual model to route requests.",
+    "name": "Virtual Model",
     "provider": "Provider",
     "created": "Created",
     "actions": "Actions",
     "edit": "Edit",
     "delete": "Delete",
-    "delete_confirm": "Delete this tag?",
-    "modal_add": "Add Tag",
-    "modal_edit": "Edit Tag",
+    "delete_confirm": "Delete this virtual model?",
+    "modal_add": "Add Virtual Model",
+    "modal_edit": "Edit Virtual Model",
     "form": {
-      "name": "Tag Name",
-      "name_hint": "Lowercase letters, numbers, and hyphens only (e.g., latest, gpt-4o)",
+      "name": "Virtual Model",
+      "name_hint": "Lowercase letters, numbers, and hyphens only (e.g., latest, claude-code)",
       "provider": "Provider",
       "select_provider": "Select a provider...",
       "save": "Save",
@@ -196,13 +197,13 @@
   "error": {
     "failed_providers": "Failed to load providers",
     "failed_keys": "Failed to load API keys",
-    "failed_tags": "Failed to load tags",
+    "failed_virtual_models": "Failed to load virtual models",
     "failed_save": "Failed to save provider",
     "failed_save_key": "Failed to create API key",
-    "failed_save_tag": "Failed to save tag",
+    "failed_save_virtual_model": "Failed to save virtual model",
     "failed_update_provider": "Failed to update active provider",
     "failed_usage": "Failed to load usage",
-    "tag_duplicate": "Tag name already exists",
-    "tag_invalid_name": "Invalid tag name format"
+    "virtual_model_duplicate": "Virtual model name already exists",
+    "virtual_model_invalid_name": "Invalid virtual model name format"
   }
 }

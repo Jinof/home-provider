@@ -25,7 +25,7 @@ Middleware for request authentication and request logging via slog.
 **Log Format** (slog JSON):
 
 ```json
-{"time":"...","level":"INFO","msg":"request","type":"inference","method":"POST","path":"/messages","status":200,"latency":...,"key_prefix":"hpk_xxx","model":"kimi-k2.5","tag":"latest","provider":"Kimi"}
+{"time":"...","level":"INFO","msg":"request","type":"inference","method":"POST","path":"/messages","status":200,"latency":...,"key_prefix":"hpk_xxx","model":"kimi-k2.5","virtual_model":"latest","provider":"Kimi"}
 ```
 
 **Log Fields**:
@@ -38,7 +38,7 @@ Middleware for request authentication and request logging via slog.
 | `latency` | duration | Request latency |
 | `key_prefix` | string | API key prefix (not full key) |
 | `model` | string | Model name (inference only) |
-| `tag` | string | Tag name (inference only) |
+| `virtual_model` | string | Virtual model name (inference only) |
 | `provider` | string | Provider name (inference only) |
 
 ## CONVENTIONS

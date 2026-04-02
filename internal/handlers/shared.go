@@ -13,13 +13,13 @@ import (
 )
 
 type ProviderResolver struct {
-	Provider *models.Provider
-	Tag      *models.Tag
+	Provider     *models.Provider
+	VirtualModel *models.VirtualModel
 }
 
-func (r *ProviderResolver) TagName() string {
-	if r.Tag != nil {
-		return r.Tag.Name
+func (r *ProviderResolver) VirtualModelName() string {
+	if r.VirtualModel != nil {
+		return r.VirtualModel.Name
 	}
 	return ""
 }
@@ -29,16 +29,16 @@ const (
 	ProviderMiniMax = "MiniMax"
 )
 
-func ResolveProvider(r *http.Request, model string, pm *services.ProviderManager, tm *services.TagManager) (*ProviderResolver, error) {
-	tag, err := tm.GetByName(model)
-	if err != nil || tag == nil {
-		return nil, errors.New("tag not found")
+func ResolveProvider(r *http.Request, model string, pm *services.ProviderManager, vm *services.VirtualModelManager) (*ProviderResolver, error) {
+	virtualModel, err := vm.GetByName(model)
+	if err != nil || virtualModel == nil {
+		return nil, errors.New("virtual model not found")
 	}
-	provider, err := pm.Get(tag.ProviderID)
+	provider, err := pm.Get(virtualModel.ProviderID)
 	if err != nil || provider == nil {
-		return nil, errors.New("provider not found for tag")
+		return nil, errors.New("provider not found for virtual model")
 	}
-	return &ProviderResolver{Provider: provider, Tag: tag}, nil
+	return &ProviderResolver{Provider: provider, VirtualModel: virtualModel}, nil
 }
 
 func UsesBearerAuthForAnthropicEndpoint(provider *models.Provider) bool {
@@ -251,7 +251,7 @@ func GetErrorSuggestion(providerName, errorType, reason string) string {
 	case "rate_limit_error":
 		return "Rate limit exceeded. Wait and retry, or contact the provider to increase your quota."
 	case "model_not_found_error", "not_found_error":
-		return "The model may not be available on this provider. Check available models or try a different tag."
+		return "The model may not be available on this provider. Check available models or try a different virtual model."
 	default:
 		if providerName == "Kimi" && errorType == "upstream_error" {
 			return "Kimi requires specific User-Agent. Ensure you're using KimiCLI/1.3 or similar."
@@ -260,7 +260,7 @@ func GetErrorSuggestion(providerName, errorType, reason string) string {
 	}
 }
 
-func LogRequest(start time.Time, apiKeyRecord *models.APIKey, method, path string, status int, model, tagName, provider string) {
+func LogRequest(start time.Time, apiKeyRecord *models.APIKey, method, path string, status int, model, virtualModelName, provider string) {
 	attrs := []any{
 		slog.String("type", "inference"),
 		slog.String("method", method),
@@ -269,7 +269,7 @@ func LogRequest(start time.Time, apiKeyRecord *models.APIKey, method, path strin
 		slog.Duration("latency", time.Since(start)),
 		slog.String("key_prefix", apiKeyRecord.KeyPrefix),
 		slog.String("model", model),
-		slog.String("tag", tagName),
+		slog.String("virtual_model", virtualModelName),
 		slog.String("provider", provider),
 	}
 

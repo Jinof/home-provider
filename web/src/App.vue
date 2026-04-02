@@ -4,8 +4,12 @@
       <button class="tab-btn" :class="{ active: tab === 'guide' }" @click="switchTab('guide')">
         {{ $t('tabs.guide') }}
       </button>
-      <button class="tab-btn" :class="{ active: tab === 'tags' }" @click="switchTab('tags')">
-        {{ $t('tabs.tags') }}
+      <button
+        class="tab-btn"
+        :class="{ active: tab === 'virtual-models' }"
+        @click="switchTab('virtual-models')"
+      >
+        {{ $t('tabs.virtual_models') }}
       </button>
       <button
         class="tab-btn"
@@ -73,14 +77,14 @@
               <text x="45" y="42" text-anchor="middle" class="box-subtitle-sm">sk-xxx</text>
             </g>
 
-            <!-- Arrow to Tag -->
+            <!-- Arrow to Virtual Model -->
             <line x1="275" y1="65" x2="320" y2="65" class="static-arrow" marker-end="url(#arrow)" />
             <text x="297" y="58" text-anchor="middle" class="flow-label">Bearer</text>
 
-            <!-- Tag Box -->
+            <!-- Virtual Model Box -->
             <g transform="translate(320, 35)">
               <rect width="90" height="60" rx="8" class="box-fill-static" />
-              <text x="45" y="25" text-anchor="middle" class="box-title">Tag</text>
+              <text x="45" y="25" text-anchor="middle" class="box-title">Virtual Model</text>
               <text x="45" y="45" text-anchor="middle" class="box-subtitle-sm">latest</text>
             </g>
 
@@ -228,7 +232,7 @@ Content-Type: application/json
         <thead>
           <tr>
             <th style="text-align: left; padding: 6px 12px; background: #f8f8f8">
-              {{ $t('guide.table_tag') }}
+              {{ $t('guide.table_virtual_model') }}
             </th>
             <th style="text-align: left; padding: 6px 12px; background: #f8f8f8">
               {{ $t('guide.table_provider') }}
@@ -239,18 +243,18 @@ Content-Type: application/json
           </tr>
         </thead>
         <tbody>
-          <tr v-if="!tags || tags.length === 0">
+          <tr v-if="!virtualModels || virtualModels.length === 0">
             <td colspan="3" style="padding: 12px; text-align: center; color: #888">
               {{ $t('guide.table_empty') }}
             </td>
           </tr>
-          <tr v-for="tag in tags || []" :key="tag.id">
+          <tr v-for="virtualModel in virtualModels || []" :key="virtualModel.id">
             <td style="padding: 6px 12px">
-              <code>{{ tag.name }}</code>
+              <code>{{ virtualModel.name }}</code>
             </td>
-            <td style="padding: 6px 12px">{{ getProviderName(tag.provider_id) }}</td>
+            <td style="padding: 6px 12px">{{ getProviderName(virtualModel.provider_id) }}</td>
             <td style="padding: 6px 12px">
-              <code>{{ getProviderModel(tag.provider_id) }}</code>
+              <code>{{ getProviderModel(virtualModel.provider_id) }}</code>
             </td>
           </tr>
         </tbody>
@@ -568,12 +572,12 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
       </div>
     </div>
 
-    <!-- Tags -->
-    <div v-show="tab === 'tags'">
+    <!-- Virtual Models -->
+    <div v-show="tab === 'virtual-models'">
       <div class="card">
         <div class="usage-guide">
-          <h3>{{ $t('tags.guide_title') }}</h3>
-          <p>{{ $t('tags.guide_desc') }}</p>
+          <h3>{{ $t('virtual_models.guide_title') }}</h3>
+          <p>{{ $t('virtual_models.guide_desc') }}</p>
         </div>
         <div
           style="
@@ -583,22 +587,26 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
             margin-bottom: 15px;
           "
         >
-          <h2>{{ $t('tags.title') }}</h2>
-          <button class="btn btn-primary" @click="openTagModal()">{{ $t('tags.add') }}</button>
+          <h2>{{ $t('virtual_models.title') }}</h2>
+          <button class="btn btn-primary" @click="openVirtualModelModal()">
+            {{ $t('virtual_models.add') }}
+          </button>
         </div>
-        <div v-if="tagError" class="error-msg">{{ tagError }}</div>
-        <div v-if="!tags || tags.length === 0" class="empty-state">{{ $t('tags.empty') }}</div>
-        <table v-if="tags && tags.length > 0">
+        <div v-if="virtualModelError" class="error-msg">{{ virtualModelError }}</div>
+        <div v-if="!virtualModels || virtualModels.length === 0" class="empty-state">
+          {{ $t('virtual_models.empty') }}
+        </div>
+        <table v-if="virtualModels && virtualModels.length > 0">
           <thead>
             <tr>
-              <th>{{ $t('tags.name') }}</th>
-              <th>{{ $t('tags.provider') }}</th>
-              <th>{{ $t('tags.created') }}</th>
-              <th>{{ $t('tags.actions') }}</th>
+              <th>{{ $t('virtual_models.name') }}</th>
+              <th>{{ $t('virtual_models.provider') }}</th>
+              <th>{{ $t('virtual_models.created') }}</th>
+              <th>{{ $t('virtual_models.actions') }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="t in tags || []" :key="t.id">
+            <tr v-for="t in virtualModels || []" :key="t.id">
               <td>
                 <code
                   style="
@@ -616,16 +624,16 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
                 <button
                   class="btn btn-sm"
                   style="background: #eee; margin-right: 4px"
-                  @click="openTagModal(t)"
+                  @click="openVirtualModelModal(t)"
                 >
-                  {{ $t('tags.edit') }}
+                  {{ $t('virtual_models.edit') }}
                 </button>
                 <button
                   v-if="t.name !== 'default'"
                   class="btn btn-danger btn-sm"
-                  @click="deleteTag(t.id)"
+                  @click="deleteVirtualModel(t.id)"
                 >
-                  {{ $t('tags.delete') }}
+                  {{ $t('virtual_models.delete') }}
                 </button>
               </td>
             </tr>
@@ -719,7 +727,7 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
                 <th>{{ $t('logs.columns.latency') }}</th>
                 <th>{{ $t('logs.columns.key_prefix') }}</th>
                 <th>{{ $t('logs.columns.model') }}</th>
-                <th>Tag</th>
+                <th>{{ $t('logs.columns.virtual_model') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -784,7 +792,7 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
                 <td style="color: #666; font-size: 0.85rem">{{ log.model || '-' }}</td>
                 <td>
                   <code
-                    v-if="log.tag"
+                    v-if="log.virtual_model"
                     style="
                       font-size: 0.75rem;
                       padding: 2px 5px;
@@ -792,7 +800,7 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
                       border-radius: 3px;
                       color: #155724;
                     "
-                    >{{ log.tag }}</code
+                    >{{ log.virtual_model }}</code
                   >
                   <span v-else style="color: #999">-</span>
                 </td>
@@ -969,34 +977,36 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
     </div>
   </Transition>
 
-  <!-- Tag Modal -->
+  <!-- Virtual Model Modal -->
   <Transition>
-    <div v-if="showTagModal" class="modal">
+    <div v-if="showVirtualModelModal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>{{ editingTag ? $t('tags.modal_edit') : $t('tags.modal_add') }}</h3>
-          <button class="close-btn" @click="showTagModal = false">&times;</button>
+          <h3>
+            {{ editingVirtualModel ? $t('virtual_models.modal_edit') : $t('virtual_models.modal_add') }}
+          </h3>
+          <button class="close-btn" @click="showVirtualModelModal = false">&times;</button>
         </div>
-        <form @submit.prevent="saveTag()">
+        <form @submit.prevent="saveVirtualModel()">
           <div class="form-group">
-            <label>{{ $t('tags.form.name') }}</label>
+            <label>{{ $t('virtual_models.form.name') }}</label>
             <input
               type="text"
-              v-model="tagForm.name"
+              v-model="virtualModelForm.name"
               required
               placeholder="e.g., latest"
               pattern="^[a-z0-9]+(-[a-z0-9]+)*$"
               title="lowercase letters, numbers, and hyphens only"
-              :disabled="!!editingTag"
+              :disabled="!!editingVirtualModel"
             />
             <p style="font-size: 0.8rem; color: #666; margin-top: 5px">
-              {{ $t('tags.form.name_hint') }}
+              {{ $t('virtual_models.form.name_hint') }}
             </p>
           </div>
           <div class="form-group">
-            <label>{{ $t('tags.form.provider') }}</label>
-            <select v-model="tagForm.provider_id" required>
-              <option value="">{{ $t('tags.form.select_provider') }}</option>
+            <label>{{ $t('virtual_models.form.provider') }}</label>
+            <select v-model="virtualModelForm.provider_id" required>
+              <option value="">{{ $t('virtual_models.form.select_provider') }}</option>
               <option v-for="p in providers || []" :key="p.id" :value="p.id">{{ p.name }}</option>
             </select>
           </div>
@@ -1004,12 +1014,14 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
             <button
               type="button"
               class="btn"
-              @click="showTagModal = false"
+              @click="showVirtualModelModal = false"
               style="background: #eee"
             >
-              {{ $t('tags.form.cancel') }}
+              {{ $t('virtual_models.form.cancel') }}
             </button>
-            <button type="submit" class="btn btn-primary">{{ $t('tags.form.save') }}</button>
+            <button type="submit" class="btn btn-primary">
+              {{ $t('virtual_models.form.save') }}
+            </button>
           </div>
         </form>
       </div>
@@ -1018,7 +1030,7 @@ Authorization: Bearer &lt;your-api-key&gt;</pre
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
@@ -1045,28 +1057,28 @@ function switchTab(newTab: string, isInit = false) {
   if (newTab === 'stats') loadUsage();
   if (newTab === 'providers') loadProviders();
   if (newTab === 'keys') loadKeys();
-  if (newTab === 'tags') {
-    loadTags();
+  if (newTab === 'virtual-models') {
+    loadVirtualModels();
     loadProviders();
   }
   if (newTab === 'logs') startLogsAutoRefresh();
   if (newTab === 'guide') {
-    loadTags();
+    loadVirtualModels();
     loadProviders();
   }
 }
 const apiKeys = ref<any[]>([]);
-const tags = ref<any[]>([]);
+const virtualModels = ref<any[]>([]);
 const usageStats = ref<any>(null);
 const usageDays = ref('7');
 const error = ref<string | null>(null);
-const tagError = ref<string | null>(null);
+const virtualModelError = ref<string | null>(null);
 const newKey = ref<string | null>(null);
 const showProviderModal = ref(false);
 const showKeyModal = ref(false);
-const showTagModal = ref(false);
+const showVirtualModelModal = ref(false);
 const editingProvider = ref<any>(null);
-const editingTag = ref<any>(null);
+const editingVirtualModel = ref<any>(null);
 const selectedPreset = ref('');
 const logs = ref<any[]>([]);
 const logsContainer = ref<HTMLElement | null>(null);
@@ -1098,7 +1110,7 @@ const keyForm = reactive({
   expires_at: '',
 });
 
-const tagForm = reactive({
+const virtualModelForm = reactive({
   name: '',
   provider_id: '',
 });
@@ -1136,8 +1148,9 @@ const presets: Record<string, any> = {
 
 onMounted(() => {
   const path = route.path.replace('/', '') || 'guide';
-  tab.value = path;
-  switchTab(path, true);
+  const initialTab = path || 'guide';
+  tab.value = initialTab;
+  switchTab(initialTab, true);
 });
 
 onUnmounted(() => {
@@ -1181,8 +1194,7 @@ async function loadLogs(offset = logsOffset.value) {
         logsContainer.value.scrollTop = 0;
       }
     });
-  } catch (e: any) {
-    console.error(e);
+  } catch {
     logs.value = [];
   }
 }
@@ -1375,16 +1387,17 @@ async function deleteKey(id: string) {
   }
 }
 
-async function loadTags() {
+async function loadVirtualModels() {
+  virtualModelError.value = null;
   try {
-    const res = await fetch('/admin/tags', {
+    const res = await fetch('/admin/virtual-models', {
       headers: { 'Content-Type': 'application/json' },
     });
-    if (res.status >= 500) throw new Error(t('error.failed_tags'));
-    tags.value = (await res.json()) || [];
+    if (res.status >= 500) throw new Error(t('error.failed_virtual_models'));
+    virtualModels.value = (await res.json()) || [];
   } catch (e: any) {
-    tagError.value = t('error.failed_tags');
-    tags.value = [];
+    virtualModelError.value = t('error.failed_virtual_models');
+    virtualModels.value = [];
   }
 }
 
@@ -1404,27 +1417,30 @@ function getProviderModel(providerId: string): string {
   return provider.models || '';
 }
 
-function openTagModal(tag: any = null) {
-  editingTag.value = tag;
-  if (tag) {
-    tagForm.name = tag.name;
-    tagForm.provider_id = tag.provider_id;
+function openVirtualModelModal(virtualModel: any = null) {
+  editingVirtualModel.value = virtualModel;
+  if (virtualModel) {
+    virtualModelForm.name = virtualModel.name;
+    virtualModelForm.provider_id = virtualModel.provider_id;
   } else {
-    tagForm.name = '';
-    tagForm.provider_id = '';
+    virtualModelForm.name = '';
+    virtualModelForm.provider_id = '';
   }
-  showTagModal.value = true;
+  showVirtualModelModal.value = true;
 }
 
-async function saveTag() {
+async function saveVirtualModel() {
+  virtualModelError.value = null;
   try {
     const body = {
-      name: tagForm.name,
-      provider_id: tagForm.provider_id,
+      name: virtualModelForm.name,
+      provider_id: virtualModelForm.provider_id,
     };
 
-    const url = editingTag.value ? `/admin/tags/${editingTag.value.id}` : '/admin/tags';
-    const method = editingTag.value ? 'PUT' : 'POST';
+    const url = editingVirtualModel.value
+      ? `/admin/virtual-models/${editingVirtualModel.value.id}`
+      : '/admin/virtual-models';
+    const method = editingVirtualModel.value ? 'PUT' : 'POST';
 
     const res = await fetch(url, {
       method,
@@ -1436,31 +1452,32 @@ async function saveTag() {
 
     if (!res.ok) {
       if (res.status === 409) {
-        throw new Error(t('error.tag_duplicate'));
+        throw new Error(t('error.virtual_model_duplicate'));
       }
       if (res.status === 400) {
-        throw new Error(t('error.tag_invalid_name'));
+        throw new Error(t('error.virtual_model_invalid_name'));
       }
-      throw new Error(t('error.failed_save_tag'));
+      throw new Error(t('error.failed_save_virtual_model'));
     }
 
-    showTagModal.value = false;
-    loadTags();
+    showVirtualModelModal.value = false;
+    loadVirtualModels();
   } catch (e: any) {
-    tagError.value = e.message;
+    virtualModelError.value = e.message;
   }
 }
 
-async function deleteTag(id: string) {
-  if (!confirm(t('tags.delete_confirm'))) return;
+async function deleteVirtualModel(id: string) {
+  if (!confirm(t('virtual_models.delete_confirm'))) return;
+  virtualModelError.value = null;
   try {
-    await fetch(`/admin/tags/${id}`, {
+    await fetch(`/admin/virtual-models/${id}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
     });
-    loadTags();
+    loadVirtualModels();
   } catch (e: any) {
-    tagError.value = e.message;
+    virtualModelError.value = e.message;
   }
 }
 

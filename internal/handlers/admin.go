@@ -238,18 +238,18 @@ func (h *AdminHandler) GetUsage(w http.ResponseWriter, r *http.Request) {
 }
 
 type slogLogEntry struct {
-	Time      string `json:"time"`
-	Level     string `json:"level"`
-	Msg       string `json:"msg"`
-	Type      string `json:"type"`
-	Method    string `json:"method"`
-	Path      string `json:"path"`
-	Status    int    `json:"status"`
-	Latency   int64  `json:"latency"`
-	KeyPrefix string `json:"key_prefix"`
-	Model     string `json:"model"`
-	Tag       string `json:"tag"`
-	Provider  string `json:"provider"`
+	Time         string `json:"time"`
+	Level        string `json:"level"`
+	Msg          string `json:"msg"`
+	Type         string `json:"type"`
+	Method       string `json:"method"`
+	Path         string `json:"path"`
+	Status       int    `json:"status"`
+	Latency      int64  `json:"latency"`
+	KeyPrefix    string `json:"key_prefix"`
+	Model        string `json:"model"`
+	VirtualModel string `json:"virtual_model"`
+	Provider     string `json:"provider"`
 }
 
 func (h *AdminHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
@@ -347,7 +347,7 @@ func (h *AdminHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *AdminHandler) CreateTag(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandler) CreateVirtualModel(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name       string `json:"name"`
 		ProviderID string `json:"provider_id"`
@@ -366,17 +366,17 @@ func (h *AdminHandler) CreateTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := services.NewTagManager().Create(body.Name, body.ProviderID)
+	id, err := services.NewVirtualModelManager().Create(body.Name, body.ProviderID)
 	if err != nil {
 		if err.Error() == "provider not found" {
 			respondError(w, 400, "validation_error", err.Error())
 			return
 		}
-		if err.Error() == "tag with this name already exists" {
+		if err.Error() == "virtual model with this name already exists" {
 			respondError(w, 409, "conflict_error", err.Error())
 			return
 		}
-		if err.Error() == "tag name must match pattern ^[a-z0-9]+(-[a-z0-9]+)*$" {
+		if err.Error() == "virtual model name must match pattern ^[a-z0-9]+(-[a-z0-9]+)*$" {
 			respondError(w, 400, "validation_error", err.Error())
 			return
 		}
@@ -384,34 +384,34 @@ func (h *AdminHandler) CreateTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tag, err := services.NewTagManager().Get(id)
+	virtualModel, err := services.NewVirtualModelManager().Get(id)
 	if err != nil {
-		respondError(w, 500, "internal_error", "Failed to retrieve created tag")
+		respondError(w, 500, "internal_error", "Failed to retrieve created virtual model")
 		return
 	}
-	respondJSON(w, 201, tag)
+	respondJSON(w, 201, virtualModel)
 }
 
-func (h *AdminHandler) ListTags(w http.ResponseWriter, r *http.Request) {
-	tags, err := services.NewTagManager().List()
+func (h *AdminHandler) ListVirtualModels(w http.ResponseWriter, r *http.Request) {
+	virtualModels, err := services.NewVirtualModelManager().List()
 	if err != nil {
 		respondError(w, 500, "internal_error", err.Error())
 		return
 	}
-	respondJSON(w, 200, tags)
+	respondJSON(w, 200, virtualModels)
 }
 
-func (h *AdminHandler) GetTag(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandler) GetVirtualModel(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	tag, err := services.NewTagManager().Get(id)
+	virtualModel, err := services.NewVirtualModelManager().Get(id)
 	if err != nil {
-		respondError(w, 404, "not_found_error", "tag not found")
+		respondError(w, 404, "not_found_error", "virtual model not found")
 		return
 	}
-	respondJSON(w, 200, tag)
+	respondJSON(w, 200, virtualModel)
 }
 
-func (h *AdminHandler) UpdateTag(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandler) UpdateVirtualModel(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var body map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -419,9 +419,9 @@ func (h *AdminHandler) UpdateTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := services.NewTagManager().Update(id, body)
+	err := services.NewVirtualModelManager().Update(id, body)
 	if err != nil {
-		if err.Error() == "tag not found" {
+		if err.Error() == "virtual model not found" {
 			respondError(w, 404, "not_found_error", err.Error())
 			return
 		}
@@ -430,11 +430,11 @@ func (h *AdminHandler) UpdateTag(w http.ResponseWriter, r *http.Request) {
 			respondError(w, 400, "validation_error", err.Error())
 			return
 		}
-		if err.Error() == "tag name must match pattern ^[a-z0-9]+(-[a-z0-9]+)*$" {
+		if err.Error() == "virtual model name must match pattern ^[a-z0-9]+(-[a-z0-9]+)*$" {
 			respondError(w, 400, "validation_error", err.Error())
 			return
 		}
-		if err.Error() == "tag with this name already exists" {
+		if err.Error() == "virtual model with this name already exists" {
 			respondError(w, 409, "conflict_error", err.Error())
 			return
 		}
@@ -442,27 +442,27 @@ func (h *AdminHandler) UpdateTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tag, err := services.NewTagManager().Get(id)
+	virtualModel, err := services.NewVirtualModelManager().Get(id)
 	if err != nil {
-		respondError(w, 500, "internal_error", "Failed to retrieve updated tag")
+		respondError(w, 500, "internal_error", "Failed to retrieve updated virtual model")
 		return
 	}
-	respondJSON(w, 200, tag)
+	respondJSON(w, 200, virtualModel)
 }
 
-func (h *AdminHandler) DeleteTag(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandler) DeleteVirtualModel(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	err := services.NewTagManager().Delete(id)
+	err := services.NewVirtualModelManager().Delete(id)
 	if err != nil {
-		if err.Error() == "tag not found" {
-			respondError(w, 404, "not_found_error", "tag not found")
+		if err.Error() == "virtual model not found" {
+			respondError(w, 404, "not_found_error", "virtual model not found")
 			return
 		}
-		if err.Error() == "cannot delete default tag" {
-			respondError(w, 400, "validation_error", "cannot delete default tag")
+		if err.Error() == "cannot delete default virtual model" {
+			respondError(w, 400, "validation_error", "cannot delete default virtual model")
 			return
 		}
-		respondError(w, 500, "internal_error", "Failed to delete tag")
+		respondError(w, 500, "internal_error", "Failed to delete virtual model")
 		return
 	}
 	w.WriteHeader(204)

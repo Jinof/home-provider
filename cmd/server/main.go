@@ -66,8 +66,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := services.NewTagManager().EnsureDefaultTag(""); err != nil {
-		slog.Warn("Failed to ensure default tag", "error", err)
+	if err := services.NewVirtualModelManager().EnsureDefaultVirtualModel(""); err != nil {
+		slog.Warn("Failed to ensure default virtual model", "error", err)
 	}
 
 	anthropicHandler := handlers.NewAnthropicHandler()
@@ -88,11 +88,11 @@ func main() {
 	adminMux.HandleFunc("GET /keys", adminHandler.ListKeys)
 	adminMux.HandleFunc("POST /keys", adminHandler.CreateKey)
 	adminMux.HandleFunc("DELETE /keys/{id}", adminHandler.DeleteKey)
-	adminMux.HandleFunc("POST /tags", adminHandler.CreateTag)
-	adminMux.HandleFunc("GET /tags", adminHandler.ListTags)
-	adminMux.HandleFunc("GET /tags/{id}", adminHandler.GetTag)
-	adminMux.HandleFunc("PUT /tags/{id}", adminHandler.UpdateTag)
-	adminMux.HandleFunc("DELETE /tags/{id}", adminHandler.DeleteTag)
+	adminMux.HandleFunc("POST /virtual-models", adminHandler.CreateVirtualModel)
+	adminMux.HandleFunc("GET /virtual-models", adminHandler.ListVirtualModels)
+	adminMux.HandleFunc("GET /virtual-models/{id}", adminHandler.GetVirtualModel)
+	adminMux.HandleFunc("PUT /virtual-models/{id}", adminHandler.UpdateVirtualModel)
+	adminMux.HandleFunc("DELETE /virtual-models/{id}", adminHandler.DeleteVirtualModel)
 	adminMux.HandleFunc("GET /usage", adminHandler.GetUsage)
 	adminMux.HandleFunc("GET /logs", adminHandler.GetLogs)
 

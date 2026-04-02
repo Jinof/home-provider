@@ -12,7 +12,7 @@ go build -o server ./cmd/server
 ./server
 
 # Run single test
-go test ./internal/services/... -run TestTagManager_Create -v
+go test ./internal/services/... -run TestVirtualModelManager_Create -v
 
 # Format Go code
 gofmt -w ./internal/
@@ -26,7 +26,7 @@ cd web && npm install && npm run build
 API proxy server routing LLM requests through configurable provider backends. Request flow:
 
 ```
-Client → API Key Validation → Tag Resolution → Provider → Response
+Client → API Key Validation → Virtual Model Resolution → Provider → Response
 ```
 
 **Routing:**
@@ -39,7 +39,7 @@ Client → API Key Validation → Tag Resolution → Provider → Response
 
 **Key packages:**
 - `internal/handlers/` — HTTP handlers (admin, openai, anthropic)
-- `internal/services/` — Business logic (KeyManager, ProviderManager, TagManager, UsageTracker)
+- `internal/services/` — Business logic (KeyManager, ProviderManager, VirtualModelManager, UsageTracker)
 - `internal/middleware/` — Auth and logging middleware
 - `internal/models/` — Data structures
 
@@ -48,9 +48,9 @@ Client → API Key Validation → Tag Resolution → Provider → Response
 **Service singletons:**
 ```go
 var once sync.Once
-var instance *TagManager
-func NewTagManager() *TagManager {
-    once.Do(func() { instance = &TagManager{} })
+var instance *VirtualModelManager
+func NewVirtualModelManager() *VirtualModelManager {
+    once.Do(func() { instance = &VirtualModelManager{} })
     return instance
 }
 ```

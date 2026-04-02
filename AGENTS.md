@@ -12,9 +12,9 @@ API proxy server that routes LLM requests (OpenAI-compatible + Anthropic) throug
 ```
 home-provider/
 ├── cmd/server/          # Go entry point
-├── internal/             # Go source (handlers, services, middleware, models)
+├── internal/            # Go source (handlers, services, middleware, models)
 ├── web/                 # Vue.js 3 frontend (built separately via Vite)
-├── data/                # JSON persistence (api_keys, providers, usage, tags, logs)
+├── data/                # JSON persistence (api_keys, providers, usage, virtual_models, logs)
 ├── configs/             # External configs (provider API endpoints)
 └── certs/               # TLS certificates
 ```
@@ -36,7 +36,7 @@ go build -o server ./cmd/server
 TLS_CERT=./certs/cert.pem TLS_KEY=./certs/key.pem ./server
 
 # Run a single test
-go test ./internal/services/... -run TestTagManager_Create -v
+go test ./internal/services/... -run TestVirtualModelManager_Create -v
 
 # Run tests with coverage
 go test ./... -cover
@@ -78,6 +78,7 @@ npm run preview
 | `POST /v1/messages`         | AnthropicHandler  | ✅   | Anthropic Messages API  |
 | `/admin/providers/*`        | AdminHandler      | ❌   | Provider CRUD           |
 | `/admin/keys/*`             | AdminHandler      | ❌   | API key management      |
+| `/admin/virtual-models/*`   | AdminHandler      | ❌   | Virtual model CRUD      |
 | `GET /admin/usage`          | AdminHandler      | ❌   | Usage stats             |
 | `GET /admin/logs`           | AdminHandler      | ❌   | Log buffer query        |
 
@@ -123,11 +124,11 @@ respondJSON(w, statusCode, data)
 
 ```go
 var once sync.Once
-var instance *TagManager
+var instance *VirtualModelManager
 
-func NewTagManager() *TagManager {
+func NewVirtualModelManager() *VirtualModelManager {
     once.Do(func() {
-        instance = &TagManager{}
+        instance = &VirtualModelManager{}
     })
     return instance
 }
@@ -143,7 +144,7 @@ const APIKeyContextKey contextKey = "apiKey"
 ### Data Persistence
 
 - Use `database.ReadJSON(path, &dest)` and `database.WriteJSON(path, data)`
-- Data files: `data/api_keys.json`, `data/providers.json`, `data/tags.json`, `data/usage.json`
+- Data files: `data/api_keys.json`, `data/providers.json`, `data/virtual_models.json`, `data/usage.json`
 
 ### Logging
 
@@ -200,22 +201,22 @@ const router = createRouter({
 
 ## Key Files
 
-| File                                    | Purpose                                             |
-| --------------------------------------- | --------------------------------------------------- |
-| `cmd/server/main.go`                    | Entry point, HTTP router, TLS/HTTP2, SPA fallback   |
-| `internal/handlers/admin.go`            | Admin API (providers, keys, usage, logs)            |
-| `internal/handlers/openai.go`           | OpenAI-compatible proxy                             |
-| `internal/handlers/anthropic.go`        | Anthropic Messages API proxy                        |
-| `internal/services/key_manager.go`      | API key generation, validation, storage             |
-| `internal/services/provider_manager.go` | Provider CRUD                                       |
-| `internal/services/tag_manager.go`      | Tag CRUD                                            |
-| `internal/services/usage_tracker.go`    | Usage logging and stats                             |
-| `internal/services/crypto.go`           | AES-GCM encryption (call `InitCrypto()` at startup) |
-| `internal/middleware/auth.go`           | Bearer token validation, API key context            |
-| `internal/middleware/logging.go`        | Request logging via slog JSON                       |
-| `internal/models/*.go`                  | Data structs (APIKey, Provider, Tag, UsageLog)      |
-| `web/src/App.vue`                       | Main Vue component with all tabs                    |
-| `web/src/locales/*.json`                | i18n translations                                   |
+| File                                      | Purpose                                             |
+| ----------------------------------------- | --------------------------------------------------- |
+| `cmd/server/main.go`                      | Entry point, HTTP router, TLS/HTTP2, SPA fallback   |
+| `internal/handlers/admin.go`              | Admin API (providers, keys, usage, logs)            |
+| `internal/handlers/openai.go`             | OpenAI-compatible proxy                             |
+| `internal/handlers/anthropic.go`          | Anthropic Messages API proxy                        |
+| `internal/services/key_manager.go`        | API key generation, validation, storage             |
+| `internal/services/provider_manager.go`   | Provider CRUD                                       |
+| `internal/services/virtual_model_manager.go` | Virtual model CRUD                               |
+| `internal/services/usage_tracker.go`      | Usage logging and stats                             |
+| `internal/services/crypto.go`             | AES-GCM encryption (call `InitCrypto()` at startup) |
+| `internal/middleware/auth.go`             | Bearer token validation, API key context            |
+| `internal/middleware/logging.go`          | Request logging via slog JSON                       |
+| `internal/models/*.go`                    | Data structs (APIKey, Provider, VirtualModel, UsageLog) |
+| `web/src/App.vue`                         | Main Vue component with all tabs                    |
+| `web/src/locales/*.json`                  | i18n translations                                   |
 
 ---
 
